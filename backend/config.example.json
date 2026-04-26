@@ -1,0 +1,14 @@
+{
+  "database_url": "postgresql+psycopg://trajectory:trajectory@db:5432/trajectory",
+
+  "openai_api_key": "sk-proj-PASTE-YOUR-OPENAI-KEY-HERE",
+  "openai_model": "gpt-4o-mini",
+
+  "admin_username": "admin",
+  "admin_password": "CHANGE-THIS-PASSWORD",
+
+  "jwt_secret": "CHANGE-THIS-TO-A-LONG-RANDOM-STRING",
+  "jwt_ttl_hours": 720,
+
+  "cors_origin": "http://localhost:3000"
+}

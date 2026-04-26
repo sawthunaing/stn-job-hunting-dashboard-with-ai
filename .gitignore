@@ -1,0 +1,29 @@
+# Secrets - NEVER commit these
+backend/config.json
+backend/.env
+frontend/.env.local
+.env
+.env.local
+
+# Old profile file from previous version
+backend/profile.md
+
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+node_modules/
+.next/
+out/
+
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/.terraform.lock.hcl
+
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

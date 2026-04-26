@@ -1,0 +1,36 @@
+# Local dev stack: Postgres + the FastAPI backend.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: trajectory
+      POSTGRES_PASSWORD: trajectory
+      POSTGRES_DB: trajectory
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trajectory -d trajectory"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  api:
+    build: .
+    volumes:
+      # Mount config.json read-only into the container - this is where the
+      # backend reads its credentials and OpenAI key from.
+      - ./config.json:/app/config.json:ro
+    environment:
+      # Override DATABASE_URL so it points to the docker network db hostname
+      # (rather than localhost from config.json).
+      DATABASE_URL: postgresql+psycopg://trajectory:trajectory@db:5432/trajectory
+    ports: ["8000:8000"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
