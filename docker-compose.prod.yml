@@ -1,0 +1,59 @@
+# Production stack for EC2: Postgres + FastAPI + Next.js (production mode).
+#
+# This file is meant to live on the EC2 alongside the cloned repo.
+# It overrides the dev compose with prod-friendly settings:
+#   - Postgres uses a real password from .env
+#   - Frontend is built (npm run build) and served (npm run start) - no hot reload
+#   - NEXT_PUBLIC_API_URL points at the public EC2 IP (set in .env)
+#
+# Usage on the EC2:
+#   cd ~/stn-job-hunting-dashboard-with-ai
+#   sudo docker compose -f docker-compose.prod.yml up -d --build
+#   sudo docker compose -f docker-compose.prod.yml logs -f
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: trajectory
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: trajectory
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trajectory -d trajectory"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  api:
+    build: ./backend
+    volumes:
+      - ./backend/config.json:/app/config.json:ro
+    environment:
+      DATABASE_URL: postgresql+psycopg://trajectory:${DB_PASSWORD}@db:5432/trajectory
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL}
+    environment:
+      NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL}
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

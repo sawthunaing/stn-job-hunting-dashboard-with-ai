@@ -1,0 +1,35 @@
+# Multi-stage production build for Next.js.
+# - Stage 1 (deps): install npm dependencies once, cache as a layer
+# - Stage 2 (builder): copy source, build the app
+# - Stage 3 (runner): tiny final image with just what's needed to serve
+
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# NEXT_PUBLIC_* vars are baked into the build at this point.
+# Pass via --build-arg or compose `build.args`.
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
+RUN npm run build
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+# Copy only what's needed to serve.
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start", "--", "--hostname", "0.0.0.0"]
