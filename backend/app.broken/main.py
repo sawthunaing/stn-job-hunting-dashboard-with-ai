@@ -11,7 +11,7 @@ from .config import settings
 from .db import get_db, init_db
 
 
-app = FastAPI(title="Ko Saw's Job Hunting Dashboard API", version="0.5.0")
+app = FastAPI(title="Ko Saw's Job Hunting Dashboard API", version="0.4.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -62,8 +62,10 @@ def health():
 
 @app.get("/profile", response_model=schemas.ProfileSchema)
 def get_profile(db: Session = Depends(get_db), _: str = Depends(auth.require_auth)):
+    """Get the user's profile. Returns an empty profile if none has been set up."""
     p = db.get(models.Profile, 1)
     if p is None:
+        # Return blank profile so frontend can render an empty form
         return schemas.ProfileSchema()
     return p
 
@@ -74,6 +76,7 @@ def upsert_profile(
     db: Session = Depends(get_db),
     _: str = Depends(auth.require_auth),
 ):
+    """Create or update the user's profile (singleton row, id=1)."""
     p = db.get(models.Profile, 1)
     data = payload.model_dump(exclude={"updated_at"}, exclude_unset=False)
     if p is None:

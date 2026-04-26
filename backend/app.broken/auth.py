@@ -1,6 +1,6 @@
 """Authentication: username/password login with JWT sessions.
 
-Single-user app. Credentials live in config.json (admin_username, admin_password).
+Single-user app, so credentials live in config.json (admin_username, admin_password).
 On successful POST /auth/login we issue a JWT. The frontend stores it in
 localStorage and sends it in the Authorization header on every request.
 """
@@ -14,7 +14,7 @@ from fastapi import HTTPException, Header, status
 from .config import settings
 
 
-# ---- minimal JWT impl (HS256) ----
+# ---- minimal JWT impl (HS256) so we don't need an extra dependency ----
 
 def _b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
@@ -44,6 +44,7 @@ def issue_token(username: str) -> str:
 
 
 def verify_token(token: str) -> Optional[dict]:
+    """Return the payload if valid and unexpired, else None."""
     try:
         h, p, sig = token.split(".")
     except ValueError:
@@ -67,8 +68,10 @@ def authenticate(username: str, password: str) -> bool:
     return u_ok and p_ok
 
 
+# ---- FastAPI dependency ----
+
 def require_auth(authorization: str = Header(default="")) -> str:
-    """FastAPI dependency: verify Authorization: Bearer <token>. Returns username."""
+    """Verify the Authorization: Bearer <token> header. Returns the username."""
     if settings.admin_password == "change-me-before-deploying":
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "admin password not configured")
 

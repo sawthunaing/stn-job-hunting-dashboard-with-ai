@@ -18,5 +18,5 @@ def get_db() -> Session:
 
 
 def init_db() -> None:
-    """Create tables. For schema changes use ALTER manually or migrations."""
+    """Create tables. For production use Alembic migrations instead."""
     Base.metadata.create_all(bind=engine)

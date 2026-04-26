@@ -92,12 +92,13 @@ class JobDetail(BaseModel):
 
 
 class TailorRequest(BaseModel):
-    doc_type: str  # 'cv' | 'cover_letter' | 'recruiter_email'
+    doc_type: str
 
 
 # ============ PROFILE ============
 
 class ProfileSchema(BaseModel):
+    """The user's profile. All fields optional - whatever they fill in, the AI uses."""
     model_config = ConfigDict(from_attributes=True)
 
     full_name: Optional[str] = None

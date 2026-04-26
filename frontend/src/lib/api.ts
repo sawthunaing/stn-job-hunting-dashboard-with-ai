@@ -40,10 +40,10 @@ export interface CompanyResearch {
 
 export interface TailoredDoc {
   content: string;
-  ats_match_pct: number;
-  keywords_matched: string[];
-  keywords_missing: string[];
-  suggestions: string[];
+  ats_match_pct?: number;
+  keywords_matched?: string[];
+  keywords_missing?: string[];
+  suggestions?: string[];
 }
 
 export interface JobDetail {

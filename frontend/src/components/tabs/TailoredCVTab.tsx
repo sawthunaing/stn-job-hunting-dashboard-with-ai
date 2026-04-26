@@ -68,10 +68,10 @@ export function TailoredCVTab({ job, onUpdate }: { job: JobDetail; onUpdate: (j:
               </div>
               <div className="flex items-center gap-2">
                 <div className="px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-300 font-medium">
-                  ATS Match: {doc.ats_match_pct}%
+                  ATS Match: {doc.ats_match_pct ?? "—"}%
                 </div>
                 <div className="px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-[10px] text-blue-300 font-medium">
-                  Keywords: {doc.keywords_matched.length}/{doc.keywords_matched.length + doc.keywords_missing.length}
+                  Keywords: {(doc.keywords_matched?.length ?? 0)}/{(doc.keywords_matched?.length ?? 0) + (doc.keywords_missing?.length ?? 0)}
                 </div>
                 <button
                   onClick={() => navigator.clipboard.writeText(doc.content)}
@@ -87,11 +87,11 @@ export function TailoredCVTab({ job, onUpdate }: { job: JobDetail; onUpdate: (j:
             </pre>
           </div>
 
-          {doc.keywords_missing.length > 0 && (
+          {(doc.keywords_missing?.length ?? 0) > 0 && (
             <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-4">
               <div className="text-[10px] text-amber-400 uppercase tracking-wider mb-2">Keywords missing from your profile</div>
               <div className="flex flex-wrap gap-1.5">
-                {doc.keywords_missing.map((k, i) => (
+                {doc.keywords_missing!.map((k, i) => (
                   <span key={i} className="text-[11px] px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-200">
                     {k}
                   </span>
@@ -100,13 +100,13 @@ export function TailoredCVTab({ job, onUpdate }: { job: JobDetail; onUpdate: (j:
             </div>
           )}
 
-          {doc.suggestions.length > 0 && (
+          {(doc.suggestions?.length ?? 0) > 0 && (
             <div className="rounded-xl border border-blue-500/20 bg-blue-500/[0.04] p-4">
               <div className="flex items-start gap-3">
                 <Sparkles className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
                 <div className="text-xs text-zinc-300 space-y-1.5">
                   <div className="text-blue-300 font-medium">AI suggestions</div>
-                  {doc.suggestions.map((s, i) => (
+                  {doc.suggestions!.map((s, i) => (
                     <div key={i}>• {s}</div>
                   ))}
                 </div>

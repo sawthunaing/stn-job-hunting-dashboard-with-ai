@@ -1,0 +1,74 @@
+# Full local stack: Postgres + FastAPI backend + Next.js frontend.
+#
+# Usage from the project root (the folder with this file):
+#   docker compose up -d
+#   docker compose logs -f          # tail everything
+#   docker compose logs -f api      # tail just the API
+#   docker compose down             # stop everything
+#   docker compose down -v          # stop and wipe the database
+#
+# Hot reload:
+#   - Frontend: edits to frontend/src/ instantly reload in the browser
+#   - Backend: edits to backend/app/ require `docker compose up -d --build`
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: trajectory
+      POSTGRES_PASSWORD: trajectory
+      POSTGRES_DB: trajectory
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trajectory -d trajectory"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  api:
+    build: ./backend
+    volumes:
+      # Mount config.json read-only - this is where the backend reads its
+      # credentials and OpenAI key from.
+      - ./backend/config.json:/app/config.json:ro
+    environment:
+      # Override DATABASE_URL so it points to the docker network db hostname
+      # (rather than localhost from config.json).
+      DATABASE_URL: postgresql+psycopg://trajectory:trajectory@db:5432/trajectory
+    ports: ["8000:8000"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    volumes:
+      # Live mount the source so file changes hot-reload.
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/next.config.js:/app/next.config.js
+      - ./frontend/tailwind.config.js:/app/tailwind.config.js
+      - ./frontend/postcss.config.js:/app/postcss.config.js
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      # Anonymous volume for node_modules so the container's installed deps
+      # aren't overwritten by an empty/stale folder from the host.
+      - /app/node_modules
+      - /app/.next
+    environment:
+      # Frontend talks to backend via the docker network. The browser still
+      # uses localhost since it runs on YOUR laptop, not in Docker.
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      # Required for hot reload to work reliably on Windows/macOS hosts where
+      # native filesystem events don't propagate into the container.
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+    ports: ["3000:3000"]
+    restart: unless-stopped
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
