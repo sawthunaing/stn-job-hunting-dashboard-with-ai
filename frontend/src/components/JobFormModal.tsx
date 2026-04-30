@@ -85,11 +85,11 @@ export function JobFormModal({ onClose, onSaved, editing }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-stretch md:items-center justify-center bg-black/60 backdrop-blur-sm md:p-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl max-h-[90vh] flex flex-col"
+        className="w-full md:max-w-2xl bg-zinc-900 md:border border-zinc-800 md:rounded-xl shadow-2xl h-screen md:h-auto md:max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-5 border-b border-zinc-800 shrink-0">

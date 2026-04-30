@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Target, MapPin, Briefcase, DollarSign, Clock, ExternalLink,
   Sparkles, Mail, MessageSquare, FileText, RefreshCw, Star, Pencil, Trash2,
-  User, LogOut,
+  User, LogOut, Menu, ArrowLeft,
 } from "lucide-react";
 import { api, type JobListItem, type JobDetail, type Status } from "@/lib/api";
 import { Sidebar } from "@/components/Sidebar";
@@ -37,6 +37,11 @@ function PageInner() {
   const [analyzing, setAnalyzing] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
   const [notesDraft, setNotesDraft] = useState("");
+  // Mobile-only drawer state
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // AI score filter
+  const [minScore, setMinScore] = useState(0);
+  const [includeUnscored, setIncludeUnscored] = useState(true);
 
   const refreshList = useCallback(async () => {
     try {
@@ -139,15 +144,28 @@ function PageInner() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <header className="h-14 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur sticky top-0 z-20 flex items-center justify-between px-5">
-        <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-md bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
+      {/* HEADER - compact on mobile */}
+      <header className="h-14 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur sticky top-0 z-20 flex items-center justify-between px-3 md:px-5">
+        <div className="flex items-center gap-2 md:gap-3 min-w-0">
+          {/* Hamburger - mobile only */}
+          <button
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open menu"
+            className="md:hidden p-2 -ml-2 text-zinc-300 hover:text-zinc-100 active:bg-zinc-800/40 rounded-md"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className="w-7 h-7 rounded-md bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shrink-0">
             <Target className="w-4 h-4 text-white" />
           </div>
-          <span className="text-zinc-100 font-semibold text-sm tracking-tight">Ko Saw&apos;s Job Hunting Dashboard</span>
+          <span className="text-zinc-100 font-semibold text-sm tracking-tight truncate">
+            <span className="md:hidden">Job Hunt</span>
+            <span className="hidden md:inline">Ko Saw&apos;s Job Hunting Dashboard</span>
+          </span>
         </div>
-        <div className="flex items-center gap-5">
-          <div className="hidden md:flex items-center gap-5 text-xs">
+        <div className="flex items-center gap-2 md:gap-5 shrink-0">
+          {/* Stats - desktop only */}
+          <div className="hidden lg:flex items-center gap-5 text-xs">
             <div><span className="text-zinc-500">Active</span> <span className="text-zinc-100 font-medium tabular-nums ml-1">{stats.total}</span></div>
             <div><span className="text-zinc-500">Interviewing</span> <span className="text-emerald-400 font-medium tabular-nums ml-1">{stats.interviewing}</span></div>
             <div><span className="text-zinc-500">Applied</span> <span className="text-amber-400 font-medium tabular-nums ml-1">{stats.applied}</span></div>
@@ -155,24 +173,24 @@ function PageInner() {
           </div>
           <Link
             href="/profile"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md hover:bg-zinc-800/60 text-zinc-400 hover:text-zinc-200 text-xs"
+            className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-md hover:bg-zinc-800/60 text-zinc-400 hover:text-zinc-200 text-xs"
             title="Profile"
           >
-            <User className="w-3.5 h-3.5" />
-            Profile
+            <User className="w-4 h-4" />
+            <span className="hidden md:inline">Profile</span>
           </Link>
           <button
             onClick={() => { api.logout(); router.replace("/login"); }}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md hover:bg-zinc-800/60 text-zinc-400 hover:text-zinc-200 text-xs"
+            className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-md hover:bg-zinc-800/60 text-zinc-400 hover:text-zinc-200 text-xs"
             title="Sign out"
           >
-            <LogOut className="w-3.5 h-3.5" />
-            Sign out
+            <LogOut className="w-4 h-4" />
+            <span className="hidden md:inline">Sign out</span>
           </button>
         </div>
       </header>
 
-      <div className="flex h-[calc(100vh-3.5rem)]">
+      <div className="flex h-[calc(100vh-3.5rem)] h-[calc(100dvh-3.5rem)]">
         <Sidebar
           jobs={jobs}
           selectedId={selectedId}
@@ -183,39 +201,62 @@ function PageInner() {
           onStatusChange={setStatusFilter}
           onAddClick={() => setShowAddUrl(true)}
           loading={loading}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          minScore={minScore}
+          onMinScoreChange={setMinScore}
+          includeUnscored={includeUnscored}
+          onIncludeUnscoredChange={setIncludeUnscored}
         />
 
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto bg-zinc-950">
           {!selected && !loading && (
-            <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
-              {jobs.length === 0 ? "Click + Add to track your first application." : "Select a job from the sidebar."}
+            <div className="flex items-center justify-center h-full p-8 text-center">
+              <div className="space-y-3">
+                <div className="text-zinc-400 text-sm">No application selected</div>
+                <button
+                  onClick={() => setSidebarOpen(true)}
+                  className="md:hidden inline-flex items-center gap-2 px-4 py-2 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm"
+                >
+                  <Menu className="w-4 h-4" /> Open list
+                </button>
+              </div>
             </div>
           )}
 
           {selected && (
-            <div className="max-w-5xl mx-auto px-8 py-6">
-              <div className="flex items-start justify-between gap-6 mb-5">
-                <div className="flex items-start gap-4 min-w-0">
+            <div className="max-w-5xl mx-auto px-4 md:px-8 py-4 md:py-6">
+              {/* MOBILE BACK BUTTON */}
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="md:hidden inline-flex items-center gap-1.5 text-zinc-400 hover:text-zinc-200 text-sm mb-4 -ml-2 px-2 py-1"
+              >
+                <ArrowLeft className="w-4 h-4" /> All applications
+              </button>
+
+              {/* JOB HEADER - stacks on mobile */}
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 md:gap-6 mb-5">
+                <div className="flex items-start gap-3 md:gap-4 min-w-0">
                   {(() => {
                     const { letter, color } = logoFor(selected.company);
                     return (
                       <div
-                        className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl font-bold shrink-0"
+                        className="w-12 h-12 md:w-14 md:h-14 rounded-xl flex items-center justify-center text-xl md:text-2xl font-bold shrink-0"
                         style={{ backgroundColor: `${color}20`, color, border: `1px solid ${color}40` }}
                       >
                         {letter}
                       </div>
                     );
                   })()}
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="text-zinc-400 text-sm">{selected.company}</span>
                       <span className="text-zinc-700">·</span>
-                      <button onClick={cycleStatus} title="Click to cycle status">
+                      <button onClick={cycleStatus} title="Tap to cycle status" className="touch-manipulation">
                         <StatusPill status={selected.status} />
                       </button>
                     </div>
-                    <h1 className="text-2xl font-semibold text-zinc-50 tracking-tight leading-tight">{selected.role}</h1>
+                    <h1 className="text-xl md:text-2xl font-semibold text-zinc-50 tracking-tight leading-tight break-words">{selected.role}</h1>
                     <div className="flex items-center gap-2 mt-3 flex-wrap">
                       {selected.location && <MetaChip icon={MapPin} label={selected.location} />}
                       {selected.work_type && <MetaChip icon={Briefcase} label={selected.work_type} />}
@@ -229,47 +270,54 @@ function PageInner() {
                 </div>
 
                 {selected.suitability != null && c && (
-                  <div className={`rounded-xl border ${c.border} ${c.bg} p-4 shrink-0 text-center min-w-[140px]`}>
-                    <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1 flex items-center justify-center gap-1">
-                      <Sparkles className="w-3 h-3" /> Suitability
+                  <div className={`rounded-xl border ${c.border} ${c.bg} p-3 md:p-4 shrink-0 text-center md:min-w-[140px] flex md:block items-center gap-3 md:gap-0`}>
+                    <div className="md:hidden flex-shrink-0">
+                      <div className={`text-3xl font-semibold tabular-nums ${c.text} leading-none`}>{selected.suitability}</div>
                     </div>
-                    <div className={`text-4xl font-semibold tabular-nums ${c.text} leading-none`}>{selected.suitability}</div>
-                    <div className="text-[10px] text-zinc-500 mt-1">/ 100 · AI-scored</div>
+                    <div className="flex-1 md:flex-initial">
+                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1 flex items-center justify-center gap-1">
+                        <Sparkles className="w-3 h-3" /> Suitability
+                      </div>
+                      <div className={`hidden md:block text-4xl font-semibold tabular-nums ${c.text} leading-none`}>{selected.suitability}</div>
+                      <div className="text-[10px] text-zinc-500 mt-1 hidden md:block">/ 100 · AI-scored</div>
+                      <div className="text-[10px] text-zinc-500 md:hidden">/ 100 · AI-scored</div>
+                    </div>
                   </div>
                 )}
               </div>
 
+              {/* ACTION BUTTONS - wrap better on mobile */}
               <div className="flex items-center gap-2 mb-6 flex-wrap pb-5 border-b border-zinc-800/80">
                 {selected.source_url && (
                   <a
                     href={selected.source_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium bg-zinc-800/60 hover:bg-zinc-800 text-zinc-200 border border-zinc-700/60"
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-800/60 hover:bg-zinc-800 active:bg-zinc-700 text-zinc-200 border border-zinc-700/60"
                   >
-                    <ExternalLink className="w-4 h-4" /> Open Listing
+                    <ExternalLink className="w-4 h-4" /> <span className="hidden sm:inline">Open Listing</span><span className="sm:hidden">Open</span>
                   </a>
                 )}
                 <ActionButton icon={RefreshCw} label={analyzing ? "Analyzing..." : "AI Re-analyze"} onClick={reanalyze} loading={analyzing} />
-                <ActionButton icon={Mail} label="Draft Email" onClick={() => setTab("cv")} />
-                <ActionButton icon={MessageSquare} label="Interview Prep" onClick={() => setTab("prep")} />
                 <ActionButton icon={FileText} label="Tailored CV" primary onClick={() => setTab("cv")} />
+                <ActionButton icon={MessageSquare} label="Prep" onClick={() => setTab("prep")} />
                 <ActionButton icon={Pencil} label="Edit" onClick={() => setShowEdit(true)} />
                 <ActionButton icon={Trash2} label="Delete" danger onClick={deleteJob} />
                 <div className="ml-auto flex items-center gap-1">
                   <button
                     onClick={toggleStar}
-                    className={`w-8 h-8 rounded-md flex items-center justify-center hover:bg-zinc-800/60 ${
+                    className={`w-10 h-10 rounded-md flex items-center justify-center hover:bg-zinc-800/60 active:bg-zinc-800/80 ${
                       selected.starred ? "text-amber-400" : "text-zinc-400"
                     }`}
                     title={selected.starred ? "Unstar" : "Star"}
                   >
-                    <Star className="w-4 h-4" fill={selected.starred ? "currentColor" : "none"} />
+                    <Star className="w-5 h-5" fill={selected.starred ? "currentColor" : "none"} />
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1 border-b border-zinc-800/80 mb-6">
+              {/* TABS - horizontally scrollable on mobile */}
+              <div className="flex items-center gap-1 border-b border-zinc-800/80 mb-6 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
                 {([
                   ["description", "Description"],
                   ["analysis", "Analysis"],
@@ -280,7 +328,7 @@ function PageInner() {
                   <button
                     key={id}
                     onClick={() => setTab(id)}
-                    className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
+                    className={`relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                       tab === id ? "text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
                     }`}
                   >
@@ -290,7 +338,7 @@ function PageInner() {
                 ))}
               </div>
 
-              <div>
+              <div className="pb-12">
                 {tab === "description" && <DescriptionTab job={selected} />}
                 {tab === "analysis" && <AnalysisTab job={selected} onUpdate={applyDetail} />}
                 {tab === "prep" && <InterviewPrepTab job={selected} onUpdate={applyDetail} />}
@@ -302,7 +350,7 @@ function PageInner() {
                       onChange={(e) => setNotesDraft(e.target.value)}
                       placeholder="Recruiter contacts, interview prep ideas, salary research, follow-up reminders..."
                       className="w-full bg-zinc-900/40 border border-zinc-800 rounded-lg px-4 py-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700 leading-relaxed"
-                      rows={20}
+                      rows={15}
                     />
                     <div className="flex items-center justify-between">
                       <div className="text-[11px] text-zinc-500">
@@ -311,7 +359,7 @@ function PageInner() {
                       <button
                         onClick={saveNotes}
                         disabled={!notesDirty || savingNotes}
-                        className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-blue-500 hover:bg-blue-400 active:bg-blue-600 text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         {savingNotes ? "Saving..." : "Save notes"}
                       </button>
