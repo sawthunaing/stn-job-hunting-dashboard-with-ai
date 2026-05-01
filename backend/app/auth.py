@@ -79,3 +79,26 @@ def require_auth(authorization: str = Header(default="")) -> str:
     if not payload:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid or expired token")
     return payload["sub"]
+
+
+def require_read(authorization: str = Header(default="")) -> str:
+    """FastAPI dependency for READ endpoints.
+    - In demo mode: skip auth entirely (returns "demo-visitor")
+    - Otherwise: same as require_auth
+    """
+    if settings.demo_mode:
+        return "demo-visitor"
+    return require_auth(authorization)
+
+
+def require_write(authorization: str = Header(default="")) -> str:
+    """FastAPI dependency for WRITE / AI endpoints.
+    - In demo mode: ALWAYS reject with 403 (read-only public demo)
+    - Otherwise: same as require_auth
+    """
+    if settings.demo_mode:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "This is a read-only public demo. Visit github.com/sawthunaing/stn-job-hunting-dashboard-with-ai to run your own copy."
+        )
+    return require_auth(authorization)

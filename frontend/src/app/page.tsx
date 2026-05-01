@@ -1,160 +1,125 @@
 "use client";
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Target, MapPin, Briefcase, DollarSign, Clock, ExternalLink,
-  Sparkles, Mail, MessageSquare, FileText, RefreshCw, Star, Pencil, Trash2,
-  User, LogOut, Menu, ArrowLeft,
+  Target, Sparkles, TrendingUp, Clock, AlertCircle, ChevronRight,
+  Plus, User, LogOut, ListChecks, Layers,
 } from "lucide-react";
-import { api, type JobListItem, type JobDetail, type Status } from "@/lib/api";
-import { Sidebar } from "@/components/Sidebar";
-import { JobFormModal } from "@/components/JobFormModal";
-import { AddFromUrlModal } from "@/components/AddFromUrlModal";
+import { api, type JobListItem } from "@/lib/api";
 import { AuthGuard } from "@/components/AuthGuard";
-import { StatusPill, MetaChip, ActionButton, scoreColor, logoFor } from "@/components/ui";
-import { DescriptionTab } from "@/components/tabs/DescriptionTab";
-import { AnalysisTab } from "@/components/tabs/AnalysisTab";
-import { InterviewPrepTab } from "@/components/tabs/InterviewPrepTab";
-import { TailoredCVTab } from "@/components/tabs/TailoredCVTab";
+import { AddFromUrlModal } from "@/components/AddFromUrlModal";
+import { JobFormModal } from "@/components/JobFormModal";
+import { StatusPill, scoreColor, logoFor } from "@/components/ui";
 
-type TabId = "description" | "analysis" | "prep" | "cv" | "notes";
+// Stages of the funnel, in order. Anything else (Rejected, etc.) shows separately.
+const FUNNEL_STAGES = [
+  { key: "New",          label: "New",         color: "bg-zinc-500/30",   text: "text-zinc-300",     bar: "bg-zinc-400" },
+  { key: "Applied",      label: "Applied",     color: "bg-amber-500/20",  text: "text-amber-300",    bar: "bg-amber-400" },
+  { key: "Interviewing", label: "Interviewing", color: "bg-emerald-500/20", text: "text-emerald-300", bar: "bg-emerald-400" },
+  { key: "Offer",        label: "Offer",       color: "bg-blue-500/20",   text: "text-blue-300",     bar: "bg-blue-400" },
+];
 
-const STATUS_CYCLE: Status[] = ["New", "Applied", "Interviewing", "Offer", "Rejected"];
+const REJECTED = { key: "Rejected", label: "Rejected", color: "bg-rose-500/15", text: "text-rose-300", bar: "bg-rose-500/70" };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function PageInner() {
   const router = useRouter();
   const [jobs, setJobs] = useState<JobListItem[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [selected, setSelected] = useState<JobDetail | null>(null);
-  const [tab, setTab] = useState<TabId>("description");
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
   const [loading, setLoading] = useState(true);
   const [showAddUrl, setShowAddUrl] = useState(false);
   const [showAddManual, setShowAddManual] = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [savingNotes, setSavingNotes] = useState(false);
-  const [notesDraft, setNotesDraft] = useState("");
-  // Mobile-only drawer state
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  // AI score filter
-  const [minScore, setMinScore] = useState(0);
-  const [includeUnscored, setIncludeUnscored] = useState(true);
-
-  const refreshList = useCallback(async () => {
-    try {
-      const list = await api.list({ status: statusFilter, q: search });
-      setJobs(list);
-      if (list.length > 0 && (selectedId == null || !list.find((j) => j.id === selectedId))) {
-        setSelectedId(list[0].id);
-      } else if (list.length === 0) {
-        setSelectedId(null);
-        setSelected(null);
-      }
-    } catch (e: any) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }, [statusFilter, search, selectedId]);
-
-  useEffect(() => { refreshList(); }, [refreshList]);
 
   useEffect(() => {
-    if (selectedId == null) { setSelected(null); return; }
-    let cancelled = false;
-    api.get(selectedId).then((j) => {
-      if (!cancelled) { setSelected(j); setNotesDraft(j.notes || ""); }
-    }).catch(console.error);
-    return () => { cancelled = true; };
-  }, [selectedId]);
+    api.list({ status: "All", q: "" })
+      .then(setJobs)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
 
-  function applyDetail(j: JobDetail) {
-    setSelected(j);
-    setNotesDraft(j.notes || "");
-    setJobs((prev) => prev.map((row) =>
-      row.id === j.id
-        ? {
-            ...row,
-            company: j.company, role: j.role, location: j.location, platform: j.platform,
-            status: j.status, starred: j.starred, suitability: j.suitability,
-          }
-        : row
-    ));
-  }
+  // ============ COMPUTED VIEWS ============
 
-  async function cycleStatus() {
-    if (!selected) return;
-    const idx = STATUS_CYCLE.indexOf(selected.status);
-    const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
-    try { applyDetail(await api.update(selected.id, { status: next })); }
-    catch (e: any) { alert(e.message); }
-  }
-
-  async function toggleStar() {
-    if (!selected) return;
-    try { applyDetail(await api.update(selected.id, { starred: !selected.starred })); }
-    catch (e: any) { alert(e.message); }
-  }
-
-  async function reanalyze() {
-    if (!selected) return;
-    setAnalyzing(true);
-    try { applyDetail(await api.analyze(selected.id)); }
-    catch (e: any) { alert(e.message); }
-    finally { setAnalyzing(false); }
-  }
-
-  async function saveNotes() {
-    if (!selected) return;
-    setSavingNotes(true);
-    try { applyDetail(await api.update(selected.id, { notes: notesDraft })); }
-    catch (e: any) { alert(e.message); }
-    finally { setSavingNotes(false); }
-  }
-
-  async function deleteJob() {
-    if (!selected) return;
-    if (!confirm(`Delete the application for ${selected.role} at ${selected.company}?`)) return;
-    try {
-      await api.delete(selected.id);
-      setSelectedId(null);
-      setSelected(null);
-      refreshList();
-    } catch (e: any) { alert(e.message); }
-  }
-
-  const stats = useMemo(() => {
-    const scored = jobs.filter(j => j.suitability != null);
-    return {
-      total: jobs.length,
-      interviewing: jobs.filter((j) => j.status === "Interviewing").length,
-      applied: jobs.filter((j) => j.status === "Applied").length,
-      avgScore: scored.length
-        ? Math.round(scored.reduce((a, j) => a + (j.suitability || 0), 0) / scored.length)
-        : 0,
-    };
+  // Pipeline counts
+  const pipeline = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const j of jobs) counts[j.status] = (counts[j.status] || 0) + 1;
+    return counts;
   }, [jobs]);
 
-  const c = selected?.suitability != null ? scoreColor(selected.suitability) : null;
-  const symbol = selected?.currency === "USD" ? "$" : selected?.currency === "EUR" ? "€" : "£";
-  const notesDirty = selected ? notesDraft !== (selected.notes || "") : false;
+  const totalActive = jobs.length - (pipeline["Rejected"] || 0);
+  const maxFunnelCount = Math.max(1, ...FUNNEL_STAGES.map(s => pipeline[s.key] || 0));
+
+  // Conversion rates between funnel stages (forward only)
+  const conversions = useMemo(() => {
+    const out: { from: string; to: string; rate: number; numerator: number; denominator: number }[] = [];
+    for (let i = 0; i < FUNNEL_STAGES.length - 1; i++) {
+      const from = FUNNEL_STAGES[i];
+      const to = FUNNEL_STAGES[i + 1];
+      // "Reached `to` or beyond" / "Reached `from` or beyond"
+      const reachedFrom = FUNNEL_STAGES.slice(i).reduce((sum, s) => sum + (pipeline[s.key] || 0), 0);
+      const reachedTo = FUNNEL_STAGES.slice(i + 1).reduce((sum, s) => sum + (pipeline[s.key] || 0), 0);
+      out.push({
+        from: from.label,
+        to: to.label,
+        numerator: reachedTo,
+        denominator: reachedFrom,
+        rate: reachedFrom > 0 ? Math.round((reachedTo / reachedFrom) * 100) : 0,
+      });
+    }
+    return out;
+  }, [pipeline]);
+
+  // Top 3 opportunities: highest score, not yet applied
+  const topOpportunities = useMemo(() => {
+    return jobs
+      .filter(j => j.suitability != null && j.status === "New")
+      .sort((a, b) => (b.suitability ?? 0) - (a.suitability ?? 0))
+      .slice(0, 3);
+  }, [jobs]);
+
+  // Recent activity: jobs added in last 7 days, max 5
+  const recent = useMemo(() => {
+    const cutoff = Date.now() - 7 * DAY_MS;
+    return jobs
+      .filter(j => new Date(j.created_at).getTime() >= cutoff)
+      .slice(0, 5);
+  }, [jobs]);
+
+  // Needs attention: applied >14 days ago, still in "Applied"
+  const needsAttention = useMemo(() => {
+    const cutoff = Date.now() - 14 * DAY_MS;
+    return jobs.filter(j =>
+      j.status === "Applied" && new Date(j.created_at).getTime() < cutoff
+    ).slice(0, 5);
+  }, [jobs]);
+
+  // Score average
+  const avgScore = useMemo(() => {
+    const scored = jobs.filter(j => j.suitability != null);
+    if (!scored.length) return 0;
+    return Math.round(scored.reduce((a, j) => a + (j.suitability || 0), 0) / scored.length);
+  }, [jobs]);
+
+  // ============ NAVIGATION ============
+
+  function goToApplications(filter?: string) {
+    if (filter) {
+      router.push(`/applications?status=${encodeURIComponent(filter)}`);
+    } else {
+      router.push("/applications");
+    }
+  }
+
+  function openJob(id: number) {
+    router.push(`/applications?job=${id}`);
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      {/* HEADER - compact on mobile */}
+      {/* Header */}
       <header className="h-14 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur sticky top-0 z-20 flex items-center justify-between px-3 md:px-5">
-        <div className="flex items-center gap-2 md:gap-3 min-w-0">
-          {/* Hamburger - mobile only */}
-          <button
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Open menu"
-            className="md:hidden p-2 -ml-2 text-zinc-300 hover:text-zinc-100 active:bg-zinc-800/40 rounded-md"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
+        <div className="flex items-center gap-3 min-w-0">
           <div className="w-7 h-7 rounded-md bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shrink-0">
             <Target className="w-4 h-4 text-white" />
           </div>
@@ -162,15 +127,24 @@ function PageInner() {
             <span className="md:hidden">Job Hunt</span>
             <span className="hidden md:inline">Ko Saw&apos;s Job Hunting Dashboard</span>
           </span>
+          {/* Nav tabs */}
+          <nav className="hidden md:flex items-center gap-1 ml-6">
+            <Link href="/" className="px-3 py-1.5 rounded-md bg-zinc-800/60 text-zinc-100 text-xs font-medium">
+              Overview
+            </Link>
+            <Link href="/applications" className="px-3 py-1.5 rounded-md hover:bg-zinc-800/40 text-zinc-400 hover:text-zinc-200 text-xs font-medium">
+              Applications
+            </Link>
+          </nav>
         </div>
-        <div className="flex items-center gap-2 md:gap-5 shrink-0">
-          {/* Stats - desktop only */}
-          <div className="hidden lg:flex items-center gap-5 text-xs">
-            <div><span className="text-zinc-500">Active</span> <span className="text-zinc-100 font-medium tabular-nums ml-1">{stats.total}</span></div>
-            <div><span className="text-zinc-500">Interviewing</span> <span className="text-emerald-400 font-medium tabular-nums ml-1">{stats.interviewing}</span></div>
-            <div><span className="text-zinc-500">Applied</span> <span className="text-amber-400 font-medium tabular-nums ml-1">{stats.applied}</span></div>
-            <div><span className="text-zinc-500">Avg fit</span> <span className="text-zinc-100 font-medium tabular-nums ml-1">{stats.avgScore || "—"}</span></div>
-          </div>
+        <div className="flex items-center gap-1 md:gap-2 shrink-0">
+          {/* Add button - prominent on overview page */}
+          <button
+            onClick={() => setShowAddUrl(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium shadow-lg shadow-blue-500/20"
+          >
+            <Plus className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Add</span>
+          </button>
           <Link
             href="/profile"
             className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-md hover:bg-zinc-800/60 text-zinc-400 hover:text-zinc-200 text-xs"
@@ -190,195 +164,182 @@ function PageInner() {
         </div>
       </header>
 
-      <div className="flex h-[calc(100vh-3.5rem)] h-[calc(100dvh-3.5rem)]">
-        <Sidebar
-          jobs={jobs}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          search={search}
-          onSearch={setSearch}
-          statusFilter={statusFilter}
-          onStatusChange={setStatusFilter}
-          onAddClick={() => setShowAddUrl(true)}
-          loading={loading}
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          minScore={minScore}
-          onMinScoreChange={setMinScore}
-          includeUnscored={includeUnscored}
-          onIncludeUnscoredChange={setIncludeUnscored}
-        />
+      {/* Mobile nav (visible below md) */}
+      <nav className="md:hidden flex items-center gap-1 px-3 py-2 border-b border-zinc-800/80 bg-zinc-950">
+        <Link href="/" className="px-3 py-1.5 rounded-md bg-zinc-800/60 text-zinc-100 text-xs font-medium">
+          Overview
+        </Link>
+        <Link href="/applications" className="px-3 py-1.5 rounded-md hover:bg-zinc-800/40 text-zinc-400 text-xs font-medium">
+          Applications
+        </Link>
+      </nav>
 
-        <main className="flex-1 overflow-y-auto bg-zinc-950">
-          {!selected && !loading && (
-            <div className="flex items-center justify-center h-full p-8 text-center">
-              <div className="space-y-3">
-                <div className="text-zinc-400 text-sm">No application selected</div>
-                <button
-                  onClick={() => setSidebarOpen(true)}
-                  className="md:hidden inline-flex items-center gap-2 px-4 py-2 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm"
-                >
-                  <Menu className="w-4 h-4" /> Open list
-                </button>
-              </div>
+      <main className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-6 md:space-y-8">
+        {loading && (
+          <div className="text-zinc-500 text-sm">Loading your pipeline...</div>
+        )}
+
+        {!loading && jobs.length === 0 && (
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-12 text-center">
+            <Target className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
+            <h2 className="text-zinc-100 text-lg font-semibold mb-1">Nothing here yet</h2>
+            <p className="text-zinc-400 text-sm mb-5 max-w-md mx-auto">
+              Paste a job URL or add an application manually to start tracking. The AI will analyse fit, prep questions, and tailor a CV.
+            </p>
+            <button
+              onClick={() => setShowAddUrl(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-blue-500 hover:bg-blue-400 text-white text-sm font-medium"
+            >
+              <Plus className="w-4 h-4" /> Add your first application
+            </button>
+          </div>
+        )}
+
+        {!loading && jobs.length > 0 && (
+          <>
+            {/* TOP STATS ROW */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <StatCard icon={Layers}    label="Active"       value={String(totalActive)}      />
+              <StatCard icon={ListChecks} label="Total"        value={String(jobs.length)}      />
+              <StatCard icon={Sparkles}   label="Avg fit"      value={avgScore ? `${avgScore}` : "—"} accent={avgScore ? scoreColor(avgScore).text : ""} />
+              <StatCard icon={TrendingUp} label="Interviewing" value={String(pipeline["Interviewing"] || 0)} accent="text-emerald-400" />
             </div>
-          )}
 
-          {selected && (
-            <div className="max-w-5xl mx-auto px-4 md:px-8 py-4 md:py-6">
-              {/* MOBILE BACK BUTTON */}
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="md:hidden inline-flex items-center gap-1.5 text-zinc-400 hover:text-zinc-200 text-sm mb-4 -ml-2 px-2 py-1"
-              >
-                <ArrowLeft className="w-4 h-4" /> All applications
-              </button>
-
-              {/* JOB HEADER - stacks on mobile */}
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 md:gap-6 mb-5">
-                <div className="flex items-start gap-3 md:gap-4 min-w-0">
-                  {(() => {
-                    const { letter, color } = logoFor(selected.company);
+            {/* PIPELINE FUNNEL */}
+            <section>
+              <h2 className="text-zinc-100 text-base font-semibold mb-3">Pipeline</h2>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 md:p-6">
+                <div className="space-y-2">
+                  {FUNNEL_STAGES.map((s) => {
+                    const count = pipeline[s.key] || 0;
+                    const widthPct = (count / maxFunnelCount) * 100;
                     return (
-                      <div
-                        className="w-12 h-12 md:w-14 md:h-14 rounded-xl flex items-center justify-center text-xl md:text-2xl font-bold shrink-0"
-                        style={{ backgroundColor: `${color}20`, color, border: `1px solid ${color}40` }}
-                      >
-                        {letter}
-                      </div>
-                    );
-                  })()}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-zinc-400 text-sm">{selected.company}</span>
-                      <span className="text-zinc-700">·</span>
-                      <button onClick={cycleStatus} title="Tap to cycle status" className="touch-manipulation">
-                        <StatusPill status={selected.status} />
-                      </button>
-                    </div>
-                    <h1 className="text-xl md:text-2xl font-semibold text-zinc-50 tracking-tight leading-tight break-words">{selected.role}</h1>
-                    <div className="flex items-center gap-2 mt-3 flex-wrap">
-                      {selected.location && <MetaChip icon={MapPin} label={selected.location} />}
-                      {selected.work_type && <MetaChip icon={Briefcase} label={selected.work_type} />}
-                      {selected.salary_min != null && selected.salary_max != null && (
-                        <MetaChip icon={DollarSign} label={`${symbol}${selected.salary_min}–${selected.salary_max}k`} accent="text-emerald-400" />
-                      )}
-                      <MetaChip icon={Clock} label={`Added ${new Date(selected.created_at).toLocaleDateString()}`} />
-                      {selected.platform && <MetaChip icon={ExternalLink} label={selected.platform} />}
-                    </div>
-                  </div>
-                </div>
-
-                {selected.suitability != null && c && (
-                  <div className={`rounded-xl border ${c.border} ${c.bg} p-3 md:p-4 shrink-0 text-center md:min-w-[140px] flex md:block items-center gap-3 md:gap-0`}>
-                    <div className="md:hidden flex-shrink-0">
-                      <div className={`text-3xl font-semibold tabular-nums ${c.text} leading-none`}>{selected.suitability}</div>
-                    </div>
-                    <div className="flex-1 md:flex-initial">
-                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1 flex items-center justify-center gap-1">
-                        <Sparkles className="w-3 h-3" /> Suitability
-                      </div>
-                      <div className={`hidden md:block text-4xl font-semibold tabular-nums ${c.text} leading-none`}>{selected.suitability}</div>
-                      <div className="text-[10px] text-zinc-500 mt-1 hidden md:block">/ 100 · AI-scored</div>
-                      <div className="text-[10px] text-zinc-500 md:hidden">/ 100 · AI-scored</div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* ACTION BUTTONS - wrap better on mobile */}
-              <div className="flex items-center gap-2 mb-6 flex-wrap pb-5 border-b border-zinc-800/80">
-                {selected.source_url && (
-                  <a
-                    href={selected.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-800/60 hover:bg-zinc-800 active:bg-zinc-700 text-zinc-200 border border-zinc-700/60"
-                  >
-                    <ExternalLink className="w-4 h-4" /> <span className="hidden sm:inline">Open Listing</span><span className="sm:hidden">Open</span>
-                  </a>
-                )}
-                <ActionButton icon={RefreshCw} label={analyzing ? "Analyzing..." : "AI Re-analyze"} onClick={reanalyze} loading={analyzing} />
-                <ActionButton icon={FileText} label="Tailored CV" primary onClick={() => setTab("cv")} />
-                <ActionButton icon={MessageSquare} label="Prep" onClick={() => setTab("prep")} />
-                <ActionButton icon={Pencil} label="Edit" onClick={() => setShowEdit(true)} />
-                <ActionButton icon={Trash2} label="Delete" danger onClick={deleteJob} />
-                <div className="ml-auto flex items-center gap-1">
-                  <button
-                    onClick={toggleStar}
-                    className={`w-10 h-10 rounded-md flex items-center justify-center hover:bg-zinc-800/60 active:bg-zinc-800/80 ${
-                      selected.starred ? "text-amber-400" : "text-zinc-400"
-                    }`}
-                    title={selected.starred ? "Unstar" : "Star"}
-                  >
-                    <Star className="w-5 h-5" fill={selected.starred ? "currentColor" : "none"} />
-                  </button>
-                </div>
-              </div>
-
-              {/* TABS - horizontally scrollable on mobile */}
-              <div className="flex items-center gap-1 border-b border-zinc-800/80 mb-6 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-                {([
-                  ["description", "Description"],
-                  ["analysis", "Analysis"],
-                  ["prep", "Interview Prep"],
-                  ["cv", "Tailored CV"],
-                  ["notes", "Notes"],
-                ] as const).map(([id, label]) => (
-                  <button
-                    key={id}
-                    onClick={() => setTab(id)}
-                    className={`relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
-                      tab === id ? "text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
-                    }`}
-                  >
-                    {label}
-                    {tab === id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-t-full" />}
-                  </button>
-                ))}
-              </div>
-
-              <div className="pb-12">
-                {tab === "description" && <DescriptionTab job={selected} />}
-                {tab === "analysis" && <AnalysisTab job={selected} onUpdate={applyDetail} />}
-                {tab === "prep" && <InterviewPrepTab job={selected} onUpdate={applyDetail} />}
-                {tab === "cv" && <TailoredCVTab job={selected} onUpdate={applyDetail} />}
-                {tab === "notes" && (
-                  <div className="space-y-3">
-                    <textarea
-                      value={notesDraft}
-                      onChange={(e) => setNotesDraft(e.target.value)}
-                      placeholder="Recruiter contacts, interview prep ideas, salary research, follow-up reminders..."
-                      className="w-full bg-zinc-900/40 border border-zinc-800 rounded-lg px-4 py-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700 leading-relaxed"
-                      rows={15}
-                    />
-                    <div className="flex items-center justify-between">
-                      <div className="text-[11px] text-zinc-500">
-                        {notesDirty ? "Unsaved changes" : "Saved"}
-                      </div>
                       <button
-                        onClick={saveNotes}
-                        disabled={!notesDirty || savingNotes}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-blue-500 hover:bg-blue-400 active:bg-blue-600 text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                        key={s.key}
+                        onClick={() => goToApplications(s.key)}
+                        className="w-full text-left group"
                       >
-                        {savingNotes ? "Saving..." : "Save notes"}
+                        <div className="flex items-center gap-3 py-1.5">
+                          <div className={`shrink-0 w-28 md:w-32 text-xs md:text-sm font-medium ${s.text}`}>{s.label}</div>
+                          <div className="flex-1 h-7 rounded bg-zinc-900/60 overflow-hidden relative">
+                            <div
+                              className={`absolute inset-y-0 left-0 ${s.bar} transition-all group-hover:brightness-110`}
+                              style={{ width: `${Math.max(widthPct, count > 0 ? 4 : 0)}%` }}
+                            />
+                            <div className="relative px-3 h-full flex items-center text-xs font-medium tabular-nums text-zinc-50">
+                              {count}
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 shrink-0" />
+                        </div>
                       </button>
-                    </div>
+                    );
+                  })}
+
+                  {(pipeline["Rejected"] || 0) > 0 && (
+                    <button
+                      onClick={() => goToApplications("Rejected")}
+                      className="w-full text-left group pt-2 mt-2 border-t border-zinc-800"
+                    >
+                      <div className="flex items-center gap-3 py-1">
+                        <div className={`shrink-0 w-28 md:w-32 text-xs md:text-sm font-medium ${REJECTED.text}`}>{REJECTED.label}</div>
+                        <div className="flex-1 h-6 rounded bg-zinc-900/60 overflow-hidden relative">
+                          <div
+                            className={`absolute inset-y-0 left-0 ${REJECTED.bar}`}
+                            style={{ width: `${((pipeline["Rejected"] || 0) / maxFunnelCount) * 100}%` }}
+                          />
+                          <div className="relative px-3 h-full flex items-center text-xs font-medium tabular-nums text-zinc-50">
+                            {pipeline["Rejected"] || 0}
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 shrink-0" />
+                      </div>
+                    </button>
+                  )}
+                </div>
+
+                {/* Conversion rates */}
+                {conversions.some(c => c.denominator > 0) && (
+                  <div className="mt-5 pt-4 border-t border-zinc-800 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {conversions.map((c) => (
+                      <div key={c.from} className="text-xs">
+                        <div className="text-zinc-500">{c.from} → {c.to}</div>
+                        <div className="text-zinc-100 font-medium tabular-nums mt-0.5">
+                          {c.rate}%
+                          <span className="text-zinc-600 font-normal ml-1.5">
+                            ({c.numerator}/{c.denominator})
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
+            </section>
+
+            {/* TOP OPPORTUNITIES + NEEDS ATTENTION (side-by-side on md) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Top opportunities */}
+              <section>
+                <h2 className="text-zinc-100 text-base font-semibold mb-3 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-emerald-400" />
+                  Top opportunities
+                </h2>
+                {topOpportunities.length === 0 ? (
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 text-zinc-500 text-sm">
+                    No analysed opportunities yet. Add a job and run the AI fit analysis.
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 divide-y divide-zinc-800/80">
+                    {topOpportunities.map((j) => <JobMiniRow key={j.id} job={j} onClick={() => openJob(j.id)} />)}
+                  </div>
+                )}
+              </section>
+
+              {/* Needs attention */}
+              <section>
+                <h2 className="text-zinc-100 text-base font-semibold mb-3 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-400" />
+                  Needs follow-up
+                </h2>
+                {needsAttention.length === 0 ? (
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 text-zinc-500 text-sm">
+                    Nothing waiting too long. Keep applying!
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 divide-y divide-zinc-800/80">
+                    {needsAttention.map((j) => (
+                      <JobMiniRow key={j.id} job={j} onClick={() => openJob(j.id)} subtitle={`Applied ${daysAgo(j.created_at)} days ago`} />
+                    ))}
+                  </div>
+                )}
+              </section>
             </div>
-          )}
-        </main>
-      </div>
+
+            {/* RECENT ACTIVITY */}
+            {recent.length > 0 && (
+              <section>
+                <h2 className="text-zinc-100 text-base font-semibold mb-3 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-zinc-400" />
+                  Recent activity (last 7 days)
+                </h2>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 divide-y divide-zinc-800/80">
+                  {recent.map((j) => (
+                    <JobMiniRow key={j.id} job={j} onClick={() => openJob(j.id)} subtitle={`Added ${daysAgo(j.created_at)} days ago`} />
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
+        )}
+      </main>
 
       {showAddUrl && (
         <AddFromUrlModal
           onClose={() => setShowAddUrl(false)}
           onCreated={(job) => {
             setShowAddUrl(false);
-            refreshList();
-            setSelectedId(job.id);
+            openJob(job.id);
           }}
           onSwitchToManual={() => {
             setShowAddUrl(false);
@@ -392,25 +353,72 @@ function PageInner() {
           onClose={() => setShowAddManual(false)}
           onSaved={(job) => {
             setShowAddManual(false);
-            refreshList();
-            setSelectedId(job.id);
-          }}
-        />
-      )}
-
-      {showEdit && selected && (
-        <JobFormModal
-          editing={selected}
-          onClose={() => setShowEdit(false)}
-          onSaved={(job) => {
-            setShowEdit(false);
-            applyDetail(job);
-            refreshList();
+            openJob(job.id);
           }}
         />
       )}
     </div>
   );
+}
+
+// ============ SMALL COMPONENTS ============
+
+function StatCard({ icon: Icon, label, value, accent }: { icon: any; label: string; value: string; accent?: string }) {
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+      <div className="flex items-center gap-2 text-zinc-500 text-[10px] uppercase tracking-wider">
+        <Icon className="w-3.5 h-3.5" />
+        {label}
+      </div>
+      <div className={`text-2xl font-semibold tabular-nums mt-1 ${accent || "text-zinc-100"}`}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function JobMiniRow({ job, onClick, subtitle }: { job: JobListItem; onClick: () => void; subtitle?: string }) {
+  const { letter, color } = logoFor(job.company);
+  const c = job.suitability != null ? scoreColor(job.suitability) : null;
+  return (
+    <button onClick={onClick} className="w-full text-left px-4 py-3 hover:bg-zinc-800/30 active:bg-zinc-800/40 transition-colors">
+      <div className="flex items-center gap-3">
+        <div
+          className="w-9 h-9 rounded-md flex items-center justify-center text-sm font-bold shrink-0"
+          style={{ backgroundColor: `${color}20`, color, border: `1px solid ${color}30` }}
+        >
+          {letter}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-zinc-100 text-sm font-medium truncate">{job.role}</span>
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-zinc-500 text-xs truncate">{job.company}</span>
+            {subtitle && (
+              <>
+                <span className="text-zinc-700">·</span>
+                <span className="text-zinc-500 text-xs truncate">{subtitle}</span>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {job.suitability != null && c && (
+            <div className={`px-2 py-1 rounded text-[11px] font-medium tabular-nums ${c.bg} ${c.text} ${c.border} border`}>
+              {job.suitability}
+            </div>
+          )}
+          <StatusPill status={job.status} />
+          <ChevronRight className="w-4 h-4 text-zinc-600" />
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function daysAgo(iso: string): number {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / DAY_MS);
 }
 
 export default function Page() {

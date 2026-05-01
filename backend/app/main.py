@@ -49,7 +49,7 @@ def login(payload: LoginRequest):
 
 
 @app.get("/auth/me")
-def me(username: str = Depends(auth.require_auth)):
+def me(username: str = Depends(auth.require_read)):
     return {"username": username}
 
 
@@ -58,10 +58,16 @@ def health():
     return {"ok": True, "ts": datetime.utcnow().isoformat()}
 
 
+@app.get("/demo-info")
+def demo_info():
+    """Public endpoint - tells the frontend whether this deployment is demo mode."""
+    return {"demo_mode": settings.demo_mode}
+
+
 # =================== PROFILE ===================
 
 @app.get("/profile", response_model=schemas.ProfileSchema)
-def get_profile(db: Session = Depends(get_db), _: str = Depends(auth.require_auth)):
+def get_profile(db: Session = Depends(get_db), _: str = Depends(auth.require_read)):
     p = db.get(models.Profile, 1)
     if p is None:
         return schemas.ProfileSchema()
@@ -72,7 +78,7 @@ def get_profile(db: Session = Depends(get_db), _: str = Depends(auth.require_aut
 def upsert_profile(
     payload: schemas.ProfileSchema,
     db: Session = Depends(get_db),
-    _: str = Depends(auth.require_auth),
+    _: str = Depends(auth.require_write),
 ):
     p = db.get(models.Profile, 1)
     data = payload.model_dump(exclude={"updated_at"}, exclude_unset=False)
@@ -94,7 +100,7 @@ def list_jobs(
     status_filter: str | None = None,
     q: str | None = None,
     db: Session = Depends(get_db),
-    _: str = Depends(auth.require_auth),
+    _: str = Depends(auth.require_read),
 ):
     query = db.query(models.Job)
     if status_filter and status_filter != "All":
@@ -108,7 +114,7 @@ def list_jobs(
 
 
 @app.get("/jobs/{job_id}", response_model=schemas.JobDetail)
-def get_job(job_id: int, db: Session = Depends(get_db), _: str = Depends(auth.require_auth)):
+def get_job(job_id: int, db: Session = Depends(get_db), _: str = Depends(auth.require_read)):
     job = db.get(models.Job, job_id)
     if not job:
         raise HTTPException(404, "not found")
@@ -119,7 +125,7 @@ def get_job(job_id: int, db: Session = Depends(get_db), _: str = Depends(auth.re
 def create_job(
     payload: schemas.JobCreate,
     db: Session = Depends(get_db),
-    _: str = Depends(auth.require_auth),
+    _: str = Depends(auth.require_write),
 ):
     job = models.Job(**payload.model_dump())
     db.add(job)
@@ -132,7 +138,7 @@ def create_job(
 async def create_from_url(
     payload: schemas.JobFromUrl,
     db: Session = Depends(get_db),
-    _: str = Depends(auth.require_auth),
+    _: str = Depends(auth.require_write),
 ):
     try:
         page_text = await scraper.fetch_page(payload.url)
@@ -165,7 +171,7 @@ def update_job(
     job_id: int,
     payload: schemas.JobUpdate,
     db: Session = Depends(get_db),
-    _: str = Depends(auth.require_auth),
+    _: str = Depends(auth.require_write),
 ):
     job = db.get(models.Job, job_id)
     if not job:
@@ -178,7 +184,7 @@ def update_job(
 
 
 @app.delete("/jobs/{job_id}", status_code=204)
-def delete_job(job_id: int, db: Session = Depends(get_db), _: str = Depends(auth.require_auth)):
+def delete_job(job_id: int, db: Session = Depends(get_db), _: str = Depends(auth.require_write)):
     job = db.get(models.Job, job_id)
     if not job:
         raise HTTPException(404, "not found")
@@ -189,7 +195,7 @@ def delete_job(job_id: int, db: Session = Depends(get_db), _: str = Depends(auth
 # =================== AI ROUTES ===================
 
 @app.post("/jobs/{job_id}/analyze", response_model=schemas.JobDetail)
-def analyze(job_id: int, db: Session = Depends(get_db), _: str = Depends(auth.require_auth)):
+def analyze(job_id: int, db: Session = Depends(get_db), _: str = Depends(auth.require_write)):
     job = db.get(models.Job, job_id)
     if not job:
         raise HTTPException(404, "not found")
@@ -206,7 +212,7 @@ def analyze(job_id: int, db: Session = Depends(get_db), _: str = Depends(auth.re
 
 
 @app.post("/jobs/{job_id}/prep", response_model=schemas.JobDetail)
-def prep(job_id: int, db: Session = Depends(get_db), _: str = Depends(auth.require_auth)):
+def prep(job_id: int, db: Session = Depends(get_db), _: str = Depends(auth.require_write)):
     job = db.get(models.Job, job_id)
     if not job:
         raise HTTPException(404, "not found")
@@ -219,7 +225,7 @@ def prep(job_id: int, db: Session = Depends(get_db), _: str = Depends(auth.requi
 
 
 @app.post("/jobs/{job_id}/research", response_model=schemas.JobDetail)
-def research(job_id: int, db: Session = Depends(get_db), _: str = Depends(auth.require_auth)):
+def research(job_id: int, db: Session = Depends(get_db), _: str = Depends(auth.require_write)):
     job = db.get(models.Job, job_id)
     if not job:
         raise HTTPException(404, "not found")
@@ -234,7 +240,7 @@ def tailor(
     job_id: int,
     payload: schemas.TailorRequest,
     db: Session = Depends(get_db),
-    _: str = Depends(auth.require_auth),
+    _: str = Depends(auth.require_write),
 ):
     job = db.get(models.Job, job_id)
     if not job:

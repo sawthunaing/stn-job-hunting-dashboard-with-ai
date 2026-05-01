@@ -33,6 +33,11 @@ class Settings(BaseModel):
     # CORS
     cors_origin: str = "http://localhost:3000"
 
+    # Demo mode - when True, the API is public read-only (no auth required for
+    # GET endpoints) and all write/AI endpoints return 403. Used for the
+    # interviewer-facing public demo deployment.
+    demo_mode: bool = False
+
 
 def _load_from_json(path: Path) -> dict:
     try:
@@ -54,6 +59,8 @@ def _load_from_env() -> dict:
             out["jwt_ttl_hours"] = int(out["jwt_ttl_hours"])
         except ValueError:
             del out["jwt_ttl_hours"]
+    if "demo_mode" in out:
+        out["demo_mode"] = str(out["demo_mode"]).lower() in ("1", "true", "yes", "on")
     return out
 
 

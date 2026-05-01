@@ -60,10 +60,11 @@ export function MetaChip({ icon: Icon, label, accent }: { icon: LucideIcon; labe
 }
 
 export function ActionButton({
-  icon: Icon, label, primary, danger, onClick, loading,
+  icon: Icon, label, primary, danger, onClick, loading, disabled, hidden,
 }: {
-  icon: LucideIcon; label: string; primary?: boolean; danger?: boolean; onClick?: () => void; loading?: boolean;
+  icon: LucideIcon; label: string; primary?: boolean; danger?: boolean; onClick?: () => void; loading?: boolean; disabled?: boolean; hidden?: boolean;
 }) {
+  if (hidden) return null;
   const cls = primary
     ? "bg-blue-500 hover:bg-blue-400 text-white shadow-lg shadow-blue-500/20"
     : danger
@@ -72,7 +73,7 @@ export function ActionButton({
   return (
     <button
       onClick={onClick}
-      disabled={loading}
+      disabled={loading || disabled}
       className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${cls}`}
     >
       <Icon className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />

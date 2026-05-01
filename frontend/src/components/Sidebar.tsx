@@ -9,6 +9,7 @@ export function Sidebar({
   jobs, selectedId, onSelect, search, onSearch, statusFilter, onStatusChange, onAddClick, loading,
   isOpen = true, onClose,
   minScore, onMinScoreChange, includeUnscored, onIncludeUnscoredChange,
+  hideAdd,
 }: {
   jobs: JobListItem[];
   selectedId: number | null;
@@ -29,6 +30,8 @@ export function Sidebar({
   /** Whether to include unanalyzed jobs (no score) when minScore > 0. */
   includeUnscored: boolean;
   onIncludeUnscoredChange: (v: boolean) => void;
+  /** Hide the "+ Add" button (used in demo mode). */
+  hideAdd?: boolean;
 }) {
   // Compute score distribution from the FULL job set (before this filter is applied).
   // Bands: Excellent 90+, Good 75-89, OK 60-74, Low <60, Unscored null.
@@ -83,12 +86,14 @@ export function Sidebar({
           <div className="flex items-center justify-between">
             <h2 className="text-zinc-200 text-sm font-semibold">Applications</h2>
             <div className="flex items-center gap-2">
-              <button
-                onClick={onAddClick}
-                className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 font-medium px-2 py-1 -mr-1"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add
-              </button>
+              {!hideAdd && (
+                <button
+                  onClick={onAddClick}
+                  className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 font-medium px-2 py-1 -mr-1"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add
+                </button>
+              )}
               {/* Close button - mobile only */}
               <button
                 onClick={onClose}
