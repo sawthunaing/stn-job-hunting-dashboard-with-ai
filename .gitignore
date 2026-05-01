@@ -31,3 +31,5 @@ Thumbs.db
 .idea/
 infra/terraform.tfvars
 infra/terraform.tfvars
+
+replacements.txt
