@@ -1,5 +1,0 @@
-my_ip          = "86.147.67.58/32"
-db_password = "REDACTED"
-api_key        = "Zowz697Q7BOSwBDAg8CxgHWmlvsoPUWNEEwzHi0NSE"
-openai_api_key = "REDACTED"
-ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG6rbb0gcsqojlkjq0vUMaekIv1/5vP4YZMgpNowTYQx pc@STN-DESKTOP"
