@@ -1,9 +1,11 @@
 # Secrets - NEVER commit these
 backend/config.json
+backend/config.demo.json
 backend/.env
 frontend/.env.local
 .env
 .env.local
+.env.demo
 
 # Old profile file from previous version
 backend/profile.md

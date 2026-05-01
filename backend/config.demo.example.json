@@ -1,0 +1,14 @@
+{
+  "openai_api_key": "sk-proj-PASTE-YOUR-OPENAI-KEY-HERE",
+  "openai_model": "gpt-5.4-mini",
+
+  "admin_username": "demo-admin",
+  "admin_password": "PICK-A-LONG-RANDOM-STRING-NOT-USED-IN-DEMO",
+
+  "jwt_secret": "DIFFERENT-FROM-PROD-LONG-RANDOM-STRING",
+  "jwt_ttl_hours": 720,
+
+  "cors_origin": "http://51.24.16.185:3001",
+
+  "demo_mode": true
+}
