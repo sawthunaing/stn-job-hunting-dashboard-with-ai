@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ name }} - CV</title>
+<style>
+  @page {
+    size: A4;
+    margin: 1.6cm 1.8cm;
+  }
+
+  /* ATS-safe: no fancy layouts, single column, standard font, no graphics */
+  body {
+    font-family: "DejaVu Sans", Arial, Helvetica, sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.4;
+    color: #000;
+    margin: 0;
+  }
+
+  /* Header - name centered, contact line below */
+  .name {
+    font-size: 18pt;
+    font-weight: bold;
+    text-align: center;
+    margin: 0 0 4pt 0;
+    letter-spacing: 0.5pt;
+  }
+  .contact {
+    text-align: center;
+    font-size: 10pt;
+    margin-bottom: 14pt;
+    color: #333;
+  }
+  .contact a {
+    color: #333;
+    text-decoration: none;
+  }
+
+  /* Section heading - bold, all caps, with thin underline */
+  h2.section {
+    font-size: 11pt;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5pt;
+    border-bottom: 1px solid #000;
+    padding-bottom: 2pt;
+    margin: 14pt 0 6pt 0;
+  }
+
+  /* Summary paragraph */
+  .summary {
+    margin: 0 0 8pt 0;
+    text-align: justify;
+  }
+
+  /* Job entries */
+  .job {
+    margin-bottom: 9pt;
+  }
+  .job-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 1pt;
+  }
+  .job-title {
+    font-weight: bold;
+    font-size: 10.5pt;
+  }
+  .job-company {
+    font-style: italic;
+  }
+  .job-dates {
+    font-size: 9.5pt;
+    color: #444;
+    white-space: nowrap;
+    margin-left: 8pt;
+  }
+
+  /* Bullet lists - use standard bullets, hanging indent */
+  ul {
+    margin: 4pt 0 4pt 0;
+    padding-left: 16pt;
+  }
+  ul li {
+    margin-bottom: 2pt;
+    line-height: 1.35;
+  }
+
+  /* Skills - inline list */
+  .skill-block {
+    margin-bottom: 3pt;
+  }
+  .skill-block strong {
+    font-weight: bold;
+  }
+
+  /* Education entry */
+  .education-entry {
+    margin-bottom: 6pt;
+  }
+  .education-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  /* Awards / certifications */
+  .award {
+    margin-bottom: 5pt;
+  }
+  .award-name {
+    font-weight: bold;
+  }
+
+  /* Avoid weird breaks - keep job entries together */
+  .job, .education-entry {
+    page-break-inside: avoid;
+  }
+  h2.section {
+    page-break-after: avoid;
+  }
+</style>
+</head>
+<body>
+
+<h1 class="name">{{ name | upper }}</h1>
+
+<div class="contact">
+  {%- set parts = [] -%}
+  {%- if email %}{% set _ = parts.append(email) %}{% endif -%}
+  {%- if phone %}{% set _ = parts.append(phone) %}{% endif -%}
+  {%- if linkedin %}{% set _ = parts.append(linkedin) %}{% endif -%}
+  {%- if github %}{% set _ = parts.append(github) %}{% endif -%}
+  {{ parts | join(' | ') }}
+</div>
+
+{% if summary %}
+<h2 class="section">Professional Summary</h2>
+<p class="summary">{{ summary }}</p>
+{% endif %}
+
+{% if experience_html %}
+<h2 class="section">Professional Experience</h2>
+{{ experience_html | safe }}
+{% endif %}
+
+{% if education_html %}
+<h2 class="section">Education</h2>
+{{ education_html | safe }}
+{% endif %}
+
+{% if skills_html %}
+<h2 class="section">Technical Skills</h2>
+{{ skills_html | safe }}
+{% endif %}
+
+{% if achievements_html %}
+<h2 class="section">Awards &amp; Achievements</h2>
+{{ achievements_html | safe }}
+{% endif %}
+
+</body>
+</html>

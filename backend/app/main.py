@@ -1,12 +1,12 @@
 """FastAPI application."""
 from datetime import datetime
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
-from . import models, schemas, ai, scraper, auth
+from . import models, schemas, ai, scraper, auth, cv_renderer
 from .config import settings
 from .db import get_db, init_db
 
@@ -249,6 +249,53 @@ def tailor(
     db.commit()
     db.refresh(job)
     return job
+
+
+@app.get("/jobs/{job_id}/cv")
+def download_cv(
+    job_id: int,
+    format: str = "pdf",
+    db: Session = Depends(get_db),
+    _: str = Depends(auth.require_auth),
+):
+    """Download the AI-tailored CV as PDF or DOCX.
+
+    The user must have generated a tailored CV first (via POST /jobs/{id}/tailor
+    with doc_type='cv'). Identity (name, contact) is read from the Profile
+    table; body content comes from the saved AI markdown.
+    """
+    fmt = format.lower().strip()
+    if fmt not in ("pdf", "docx"):
+        raise HTTPException(400, "format must be 'pdf' or 'docx'")
+
+    job = db.get(models.Job, job_id)
+    if not job:
+        raise HTTPException(404, "job not found")
+
+    docs = job.tailored_docs or {}
+    cv_doc = docs.get("cv") if isinstance(docs, dict) else None
+    if not cv_doc or not cv_doc.get("content"):
+        raise HTTPException(
+            400,
+            "Tailored CV not generated yet. Click 'Generate' on the Tailored CV tab first."
+        )
+
+    profile = db.get(models.Profile, 1)
+    md = cv_doc["content"]
+
+    if fmt == "pdf":
+        binary = cv_renderer.render_pdf(profile, md)
+        media_type = "application/pdf"
+    else:
+        binary = cv_renderer.render_docx(profile, md)
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+    filename = cv_renderer.build_filename(profile, job.company, job.role, fmt)
+    return Response(
+        content=binary,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 def _infer_platform(url: str) -> str:

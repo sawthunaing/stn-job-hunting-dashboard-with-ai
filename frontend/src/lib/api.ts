@@ -196,4 +196,41 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ doc_type }),
     }),
+
+  /**
+   * Download the AI-tailored CV as PDF or DOCX. Triggers a browser download
+   * via a temporary anchor click. Returns the suggested filename for display.
+   */
+  downloadCV: async (id: number, format: "pdf" | "docx"): Promise<string> => {
+    const token = typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
+    const r = await fetch(`${API_URL}/jobs/${id}/cv?format=${format}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!r.ok) {
+      const text = await r.text();
+      try {
+        const j = JSON.parse(text);
+        throw new Error(j.detail || `HTTP ${r.status}`);
+      } catch {
+        throw new Error(text || `HTTP ${r.status}`);
+      }
+    }
+
+    // Pull filename from Content-Disposition if present
+    let filename = `cv.${format}`;
+    const cd = r.headers.get("Content-Disposition") || "";
+    const m = cd.match(/filename="?([^"]+)"?/i);
+    if (m) filename = m[1];
+
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    return filename;
+  },
 };
