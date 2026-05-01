@@ -4,7 +4,7 @@
 
 ### AI-powered job application platform that scores fit, tailors your CV, and preps you for interviews — automatically.
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-View_App-blue?style=for-the-badge)](http://51.24.16.185:3000)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-View_App-blue?style=for-the-badge)](http://51.24.16.185:3001)
 [![Tech](https://img.shields.io/badge/Stack-Next.js_·_FastAPI_·_Postgres_·_OpenAI-2ea44f?style=for-the-badge)](#tech-stack)
 [![Cloud](https://img.shields.io/badge/Cloud-AWS_EC2_(ARM)-orange?style=for-the-badge)](#architecture)
 
@@ -35,7 +35,7 @@ Every job application takes 2–3 hours: research the company, tailor your CV, p
 
 ## Live demo
 
-🔗 **Try it now**: [http://51.24.16.185:3000](http://51.24.16.185:3000)
+🔗 **Try it now**: [http://51.24.16.185:3001](http://51.24.16.185:3001)
 
 > The live deployment is currently single-tenant for personal job hunting. A read-only public demo with curated sample data is in development.
 
