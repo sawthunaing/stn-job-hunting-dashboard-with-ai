@@ -37,7 +37,7 @@ Every job application takes 2–3 hours: research the company, tailor your CV, p
 
 🔗 **Try it now**: [http://51.24.16.185:3001](http://51.24.16.185:3001)
 
-> The live deployment is currently single-tenant for personal job hunting. A read-only public demo with curated sample data is in development.
+> Public read-only demo with curated sample data. AI analyses, interview prep, and tailored CVs are pre-computed and visible without login. Write actions (add, edit, AI re-run) are disabled by design — visitors browse safely without affecting data or running up costs.
 
 ---
 
