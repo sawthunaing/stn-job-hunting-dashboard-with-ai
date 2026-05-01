@@ -29,3 +29,4 @@ infra/.terraform.lock.hcl
 Thumbs.db
 .vscode/
 .idea/
+infra/terraform.tfvars
