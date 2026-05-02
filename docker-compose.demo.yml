@@ -51,9 +51,11 @@ services:
       dockerfile: Dockerfile.prod
       args:
         NEXT_PUBLIC_API_URL: ${DEMO_PUBLIC_API_URL}
+        NEXT_PUBLIC_GA_ID: ${DEMO_GA_ID:-}
     container_name: trajectory-demo-frontend
     environment:
       NEXT_PUBLIC_API_URL: ${DEMO_PUBLIC_API_URL}
+      NEXT_PUBLIC_GA_ID: ${DEMO_GA_ID:-}
     ports:
       - "3001:3000"
     restart: unless-stopped
