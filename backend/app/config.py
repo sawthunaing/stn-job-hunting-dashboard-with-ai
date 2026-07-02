@@ -16,12 +16,17 @@ class Settings(BaseModel):
     # Database
     database_url: str = "postgresql+psycopg://trajectory:trajectory@localhost:5432/trajectory"
 
-    # OpenAI
+    # Anthropic Claude (active AI provider)
+    anthropic_api_key: str = ""
+    # Model picks:
+    #   claude-sonnet-4-6           - best balance of quality and cost (recommended)
+    #   claude-haiku-4-5-20251001   - cheapest, fast, good for extraction
+    #   claude-opus-4-7             - flagship quality, most expensive
+    anthropic_model: str = "claude-sonnet-4-6"
+
+    # OpenAI (legacy - no longer used after Claude migration, kept so old
+    # config.json files don't break validation)
     openai_api_key: str = ""
-    # Default to a current widely-available model. Common picks:
-    #   gpt-4o-mini       - cheap, classic Chat Completions API
-    #   gpt-5.4-mini      - newer, smarter, still cheap
-    #   gpt-5.5           - flagship
     openai_model: str = "gpt-4o-mini"
 
     # Auth
@@ -33,9 +38,8 @@ class Settings(BaseModel):
     # CORS
     cors_origin: str = "http://localhost:3000"
 
-    # Demo mode - when True, the API is public read-only (no auth required for
-    # GET endpoints) and all write/AI endpoints return 403. Used for the
-    # interviewer-facing public demo deployment.
+    # Demo mode - kept for compatibility with existing main.py / auth.py.
+    # (Demo deployment removal is a separate step.)
     demo_mode: bool = False
 
 

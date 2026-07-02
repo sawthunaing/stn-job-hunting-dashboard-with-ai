@@ -1,33 +1,36 @@
-"""AI services - all OpenAI calls live here.
+"""AI services - all Claude (Anthropic) calls live here.
 
 The user's profile is read from the database (Profile table).
 
-Model compatibility note:
-- Older models (gpt-4o, gpt-4o-mini, gpt-4.1) use 'max_tokens'.
-- Newer models (gpt-5.x, o-series) require 'max_completion_tokens' and
-  many do NOT accept 'temperature' as a parameter.
+This module was migrated from OpenAI to Anthropic Claude. The public function
+signatures and the JSON shapes they return are unchanged, so main.py and the
+frontend need no changes.
 
-We auto-detect by trying the modern parameter first and falling back if the
-API rejects it. This keeps the same code working across model upgrades.
+Claude notes vs OpenAI:
+- System prompt is a separate parameter (not a message in the list).
+- No strict "JSON mode" flag; we instruct the model to return only JSON and
+  strip any stray markdown code fences defensively.
+- Anthropic's API is consistent across models, so no quirk-detection needed.
 """
 from __future__ import annotations
 import json
+import re
 from typing import Any
-from openai import OpenAI, BadRequestError
+from anthropic import Anthropic
 from sqlalchemy.orm import Session
 from . import models
 from .config import settings
 
 
-_client: OpenAI | None = None
+_client: Anthropic | None = None
 
 
-def client() -> OpenAI:
+def client() -> Anthropic:
     global _client
     if _client is None:
-        if not settings.openai_api_key:
-            raise RuntimeError("OPENAI_API_KEY not set")
-        _client = OpenAI(api_key=settings.openai_api_key)
+        if not settings.anthropic_api_key:
+            raise RuntimeError("ANTHROPIC_API_KEY not set")
+        _client = Anthropic(api_key=settings.anthropic_api_key)
     return _client
 
 
@@ -74,79 +77,43 @@ def _load_profile(db: Session, include_private: bool = True) -> str:
     return render_profile(db.get(models.Profile, 1), include_private=include_private)
 
 
-# Track per-process whether a given model is "modern" (needs max_completion_tokens
-# + no temperature) so we don't have to retry on every call.
-_MODEL_QUIRKS_CACHE: dict[str, dict] = {}
+# Strip ```json ... ``` fences that Claude sometimes wraps JSON in.
+_FENCE_RE = re.compile(r"^```(?:json)?\s*\n?(.*?)\n?```\s*$", re.DOTALL)
+
+
+def _strip_fences(text: str) -> str:
+    text = text.strip()
+    m = _FENCE_RE.match(text)
+    return m.group(1).strip() if m else text
 
 
 def _call_json(system: str, user: str, max_output_tokens: int = 4096) -> dict[str, Any]:
-    """Call OpenAI with JSON mode and return the parsed object.
+    """Call Claude and return the parsed JSON object.
 
-    Auto-detects whether the model is on the new API conventions
-    (max_completion_tokens, no temperature) vs old (max_tokens, temperature ok).
-    Caches the result per-model to avoid retrying on every call.
+    We append a strict instruction to the system prompt to return only JSON,
+    then defensively strip any markdown fences before parsing.
     """
-    model = settings.openai_model
-    quirks = _MODEL_QUIRKS_CACHE.get(model)
+    system_json = system + (
+        "\n\nIMPORTANT: Respond with ONLY a single valid JSON object. "
+        "No markdown, no code fences, no text before or after the JSON."
+    )
 
-    def build_args(use_modern: bool, omit_temperature: bool) -> dict:
-        a: dict = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            "response_format": {"type": "json_object"},
-        }
-        if use_modern:
-            a["max_completion_tokens"] = max_output_tokens
-        else:
-            a["max_tokens"] = max_output_tokens
-        if not omit_temperature:
-            a["temperature"] = 0.4
-        return a
+    resp = client().messages.create(
+        model=settings.anthropic_model,
+        max_tokens=max_output_tokens,
+        temperature=0.4,
+        system=system_json,
+        messages=[{"role": "user", "content": user}],
+    )
 
-    # Try whatever we already learned about this model
-    if quirks:
-        try:
-            resp = client().chat.completions.create(**build_args(quirks["modern"], quirks["omit_temp"]))
-        except BadRequestError as e:
-            # Model API surface changed under us - reset and re-detect
-            _MODEL_QUIRKS_CACHE.pop(model, None)
-            return _call_json(system, user, max_output_tokens)
-    else:
-        # First call for this model - probe modern conventions, fall back as needed
-        attempts = [
-            {"modern": True,  "omit_temp": False},
-            {"modern": True,  "omit_temp": True},
-            {"modern": False, "omit_temp": False},
-            {"modern": False, "omit_temp": True},
-        ]
-        last_err: Exception | None = None
-        resp = None
-        chosen: dict | None = None
-        for attempt in attempts:
-            try:
-                resp = client().chat.completions.create(**build_args(attempt["modern"], attempt["omit_temp"]))
-                chosen = attempt
-                break
-            except BadRequestError as e:
-                last_err = e
-                msg = str(e).lower()
-                # If the error wasn't about parameter compatibility, don't bother trying further variants
-                if not any(s in msg for s in ["max_tokens", "max_completion_tokens", "temperature", "unsupported_parameter", "unsupported parameter"]):
-                    raise
-                continue
-        if resp is None or chosen is None:
-            raise last_err or RuntimeError("All OpenAI parameter combinations failed")
-        _MODEL_QUIRKS_CACHE[model] = chosen
-        print(f"[ai] detected model quirks for {model}: {chosen}")
+    # Concatenate text blocks (usually just one)
+    text = "".join(getattr(b, "text", "") for b in resp.content)
+    text = _strip_fences(text) or "{}"
 
-    text = resp.choices[0].message.content or "{}"
     try:
         return json.loads(text)
     except json.JSONDecodeError as e:
-        raise ValueError(f"OpenAI returned non-JSON: {text[:500]}") from e
+        raise ValueError(f"Claude returned non-JSON: {text[:500]}") from e
 
 
 # ============================================================================
@@ -190,7 +157,7 @@ Generate 4 technical and 4 behavioral. Quality over quantity."""
 def generate_prep(db: Session, description: str, role: str, company: str) -> dict[str, Any]:
     profile = _load_profile(db, include_private=True)
     user = f"# User profile\n{profile}\n\n# Job\n{company} - {role}\n\n## Description\n{description}\n"
-    return _call_json(PREP_SYSTEM, user, max_output_tokens=3000)
+    return _call_json(PREP_SYSTEM, user, max_output_tokens=3500)
 
 
 # ============================================================================
@@ -234,14 +201,39 @@ You MUST include all five keys in your response, even if some arrays are empty."
 def tailor_doc(db: Session, description: str, role: str, company: str, doc_type: str) -> dict[str, Any]:
     profile = _load_profile(db, include_private=False)
     instructions = {
-        "cv": "Generate a tailored CV/resume in markdown. Include summary, key skills, and 3-4 most relevant experience bullets reordered to match this JD's priorities.",
+        "cv": (
+            "Generate a tailored CV in markdown using EXACTLY this section order and structure:\n\n"
+            "## Professional Summary\n"
+            "<3-4 sentences tailored to THIS job, drawing only on the candidate's real background>\n\n"
+            "## Core Skills\n"
+            "- **<Category>:** <comma-separated skills relevant to this job>\n"
+            "<3-6 category lines, most JD-relevant categories first>\n\n"
+            "## Certifications\n"
+            "- <certification from the profile>\n\n"
+            "## Professional Experience\n"
+            "### <Job Title> • <Company, Location> @@ <Start - End>\n"
+            "- <achievement bullet, reordered and re-emphasised for THIS job's priorities>\n"
+            "<include the 3-4 most relevant roles, most recent first; 2-5 bullets each>\n\n"
+            "## Education\n"
+            "### <Degree> • <Institution> @@ <Start - End>\n\n"
+            "## Awards & Achievements\n"
+            "- <award from the profile>\n\n"
+            "CRITICAL FORMATTING RULES:\n"
+            "1. On every Experience and Education heading, put ' @@ ' (space-at-at-space) "
+            "between the role/company and the dates. This is required for date alignment.\n"
+            "2. Use '•' between job title and company.\n"
+            "3. Do NOT output a name/title/contact header - that is added separately.\n"
+            "4. Pull every role, date, certification and award from the candidate profile. "
+            "Never invent experience, dates, employers, or achievements. You may rephrase and "
+            "reorder bullets to match the JD, but the underlying facts must come from the profile."
+        ),
         "cover_letter": "Generate a focused cover letter (under 250 words). Open with something specific to the company.",
         "recruiter_email": "Generate a short outreach email (under 150 words). Include subject line.",
     }
     if doc_type not in instructions:
         raise ValueError(f"Unknown doc_type: {doc_type}")
     user = f"# Document type\n{instructions[doc_type]}\n\n# User profile\n{profile}\n\n# Target job\n{company} - {role}\n\n## Description\n{description}\n"
-    return _call_json(TAILOR_SYSTEM, user, max_output_tokens=2500)
+    return _call_json(TAILOR_SYSTEM, user, max_output_tokens=4000)
 
 
 # ============================================================================

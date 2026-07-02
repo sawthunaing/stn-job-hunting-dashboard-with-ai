@@ -4,7 +4,6 @@
 
 ### AI-powered job application platform that scores fit, tailors your CV, and preps you for interviews — automatically.
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-View_App-blue?style=for-the-badge)](http://51.24.16.185:3001)
 [![Tech](https://img.shields.io/badge/Stack-Next.js_·_FastAPI_·_Postgres_·_OpenAI-2ea44f?style=for-the-badge)](#tech-stack)
 [![Cloud](https://img.shields.io/badge/Cloud-AWS_EC2_(ARM)-orange?style=for-the-badge)](#architecture)
 
@@ -30,14 +29,6 @@ Every job application takes 2–3 hours: research the company, tailor your CV, p
 - **Pre-built interview prep** — likely questions, suggested answers, talking points, salary negotiation tips
 - **Track your pipeline** — visual funnel from New → Applied → Interviewing → Offer with conversion rates
 - **Score-based prioritization** — filter your pipeline by AI fit score so you focus on the highest-probability roles
-
----
-
-## Live demo
-
-🔗 **Try it now**: [http://51.24.16.185:3001](http://51.24.16.185:3001)
-
-> Public read-only demo with curated sample data. AI analyses, interview prep, and tailored CVs are pre-computed and visible without login. Write actions (add, edit, AI re-run) are disabled by design — visitors browse safely without affecting data or running up costs.
 
 ---
 

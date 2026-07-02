@@ -1,8 +1,8 @@
 {
   "database_url": "postgresql+psycopg://trajectory:trajectory@db:5432/trajectory",
 
-  "openai_api_key": "sk-proj-PASTE-YOUR-OPENAI-KEY-HERE",
-  "openai_model": "gpt-4o-mini",
+  "anthropic_api_key": "sk-ant-api03-PASTE-YOUR-ANTHROPIC-KEY-HERE",
+  "anthropic_model": "claude-sonnet-4-6",
 
   "admin_username": "admin",
   "admin_password": "CHANGE-THIS-PASSWORD",
