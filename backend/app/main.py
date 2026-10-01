@@ -8,6 +8,7 @@ from sqlalchemy import desc
 from sqlalchemy.exc import IntegrityError
 
 from . import models, schemas, ai, scraper, auth, indeed
+from .ratelimit import LoginLimiter
 from .config import settings
 from .db import get_db, init_db
 
@@ -50,10 +51,23 @@ class LoginResponse(BaseModel):
     expires_in_hours: int
 
 
+login_limiter = LoginLimiter(settings.login_max_attempts, settings.login_window_seconds)
+
+
 @app.post("/auth/login", response_model=LoginResponse)
-def login(payload: LoginRequest):
+def login(payload: LoginRequest, request: Request):
+    ip = request.client.host if request.client else "unknown"
+    wait = login_limiter.retry_after(ip)
+    if wait:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            f"Too many failed login attempts. Try again in {max(1, wait // 60)} min.",
+            headers={"Retry-After": str(wait)},
+        )
     if not auth.authenticate(payload.username, payload.password):
+        login_limiter.record_failure(ip)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid credentials")
+    login_limiter.reset(ip)
     token = auth.issue_token(payload.username)
     return LoginResponse(token=token, username=payload.username, expires_in_hours=settings.jwt_ttl_hours)
 

@@ -35,6 +35,10 @@ class Settings(BaseModel):
     jwt_secret: str = "change-me-before-deploying"
     jwt_ttl_hours: int = 24 * 30  # 30 days
 
+    # Login rate limiting: failed attempts allowed per client IP per window
+    login_max_attempts: int = 5
+    login_window_seconds: int = 900
+
     # CORS
     cors_origin: str = "http://localhost:3000"
 

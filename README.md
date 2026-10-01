@@ -242,6 +242,24 @@ docker compose up -d --build
 
 Open http://localhost:3000. Log in with the credentials you set in `config.json`.
 
+### Run with HTTPS (local Docker Desktop)
+
+A Caddy reverse proxy terminates TLS in front of the app, so the login password and JWT never travel over plain HTTP:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.https.yml up -d --build
+```
+
+Open **https://localhost**. Caddy signs the certificate with its own local CA, so the browser warns on first visit. Either accept the warning, or trust the CA:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.https.yml cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-local-root.crt
+```
+
+In this mode the frontend is served at `/` and the API at `/api` on the same origin, and the app containers no longer publish ports 3000/8000. For a real domain on EC2, set `SITE_ADDRESS` and `PUBLIC_API_URL` and layer it on `docker-compose.prod.yml` (see the comments in `docker-compose.https.yml`); Caddy then fetches a Let's Encrypt certificate automatically. Also open ports 80/443 and close 3000/8000 in the security group.
+
+**Login rate limiting:** after 5 failed logins from one IP within 15 minutes the API returns `429` with a `Retry-After` header (a global cap also throttles guessing spread across many IPs). Tune with `login_max_attempts` and `login_window_seconds` in `config.json`. Limits are kept in memory, so they reset when the API container restarts.
+
 ### First-time setup
 
 1. Visit `/profile` and fill in your CV details (this is what the AI uses for tailoring)

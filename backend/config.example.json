@@ -10,5 +10,8 @@
   "jwt_secret": "CHANGE-THIS-TO-A-LONG-RANDOM-STRING",
   "jwt_ttl_hours": 720,
 
+  "login_max_attempts": 5,
+  "login_window_seconds": 900,
+
   "cors_origin": "http://localhost:3000"
 }

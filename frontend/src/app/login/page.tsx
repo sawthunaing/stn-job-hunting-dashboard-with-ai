@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Target, LogIn } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,6 +19,10 @@ export default function LoginPage() {
       await api.login(username, password);
       router.push("/");
     } catch (err: any) {
+      if (err instanceof ApiError && err.status === 429 && typeof err.detail === "string") {
+        setError(err.detail);
+        return;
+      }
       const msg = err?.message || "login failed";
       // Friendlier message for the most common case
       if (msg.includes("401")) setError("Invalid username or password");
