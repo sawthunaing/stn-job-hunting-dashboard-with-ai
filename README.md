@@ -4,7 +4,7 @@
 
 ### AI-powered job application platform that scores fit, tailors your CV, and preps you for interviews — automatically.
 
-[![Tech](https://img.shields.io/badge/Stack-Next.js_·_FastAPI_·_Postgres_·_OpenAI-2ea44f?style=for-the-badge)](#tech-stack)
+[![Tech](https://img.shields.io/badge/Stack-Next.js_·_FastAPI_·_Postgres_·_Claude-2ea44f?style=for-the-badge)](#tech-stack)
 [![Cloud](https://img.shields.io/badge/Cloud-AWS_EC2_(ARM)-orange?style=for-the-badge)](#architecture)
 
 ![Dashboard hero](docs/images/hero-dashboard.png)
@@ -88,7 +88,7 @@ Full-featured dashboard on iPhone with drawer navigation and full-screen modals.
 </tr>
 <tr>
 <td><b>AI</b></td>
-<td>OpenAI GPT-5 family with auto-detection of model-specific parameter conventions</td>
+<td>Anthropic Claude (Sonnet 4.6 by default; Haiku 4.5 / Opus configurable) via the official <code>anthropic</code> Python SDK</td>
 </tr>
 <tr>
 <td><b>Auth</b></td>
@@ -125,34 +125,28 @@ Full-featured dashboard on iPhone with drawer navigation and full-screen modals.
 
 ### AI integration deep-dive
 
-The core differentiator is **adaptive model handling**. GPT-5 family models have inconsistent parameter conventions (`max_tokens` vs `max_completion_tokens`, temperature support varies, JSON mode availability differs). Rather than hard-coding for one model, the backend probes capabilities at first call and caches the quirks per model:
+All AI calls live in a single module (`backend/app/ai.py`) and go through one helper, `_call_json`, which sends a task-specific system prompt to Claude and parses a JSON object back. Each feature (extraction, fit analysis, interview prep, company research, CV / cover letter / email tailoring) is just a prompt plus a token budget:
 
 ```python
-# Per-model capability cache - probed once, used forever
-_MODEL_QUIRKS_CACHE: dict[str, ModelQuirks] = {}
-
-def _call_with_quirks(system: str, user: str, ...) -> str:
-    quirks = _detect_model_quirks(model_name)
-    kwargs = {"messages": [...]}
-    if quirks.supports_temperature:
-        kwargs["temperature"] = 0.3
-    kwargs[quirks.tokens_param] = max_output_tokens
-    if quirks.supports_json_mode:
-        kwargs["response_format"] = {"type": "json_object"}
-    return openai_client.chat.completions.create(**kwargs)
+def _call_json(system: str, user: str, max_output_tokens: int = 4096) -> dict:
+    resp = client().messages.create(
+        model=settings.anthropic_model,
+        max_tokens=max_output_tokens,
+        system=system + "\n\nRespond with ONLY a single valid JSON object.",
+        messages=[{"role": "user", "content": user}],
+    )
+    return json.loads(_strip_fences("".join(b.text for b in resp.content)))
 ```
 
-This means swapping models (gpt-5.5 → gpt-5.4-mini → gpt-5.4-nano) for cost optimisation is a one-line config change with zero code modifications.
+The model is a single config value (`anthropic_model`), so swapping models for cost or quality is a one-line change with no code modifications:
 
-### Cost analysis (per-user economics)
+| Model | Good for |
+|---|---|
+| `claude-haiku-4-5-20251001` | Cheapest and fastest; sufficient for URL extraction |
+| `claude-sonnet-4-6` | Default; best balance of quality and cost for analysis and tailoring |
+| `claude-opus-4-7` | Highest quality; most expensive |
 
-| Model | Cost per job analysed | Cost per active user / month (20 jobs) |
-|---|---|---|
-| gpt-5.5 | ~$0.38 | ~$7.60 |
-| gpt-5.4-mini | ~$0.06 | ~$1.20 (recommended for production) |
-| gpt-5.4-nano | ~$0.02 | ~$0.40 (sufficient for simple extraction) |
-
-A SaaS deployment using gpt-5.4-mini with £9.99/month pricing yields ~70% gross margin per user.
+Check [Anthropic's pricing page](https://www.anthropic.com/pricing) for current per-token rates. Since each analysis is a single short request, personal-use cost is typically small; the production table below suggests per-user spend caps for a multi-tenant deployment.
 
 ---
 
@@ -160,7 +154,7 @@ A SaaS deployment using gpt-5.4-mini with £9.99/month pricing yields ~70% gross
 
 ### 🎯 AI-powered URL extraction
 
-Paste a job listing URL from LinkedIn, Indeed, Otta, Workday, or any company careers page. The backend scrapes the page, sanitises the HTML, and feeds it to GPT for structured extraction:
+Paste a job listing URL from LinkedIn, Indeed, Otta, Workday, or any company careers page. The backend scrapes the page, sanitises the HTML, and feeds it to Claude for structured extraction:
 
 - Company name, role title, location, work type (remote/hybrid/onsite)
 - Salary range with currency normalisation
@@ -215,7 +209,7 @@ This was built for personal use. To productise it for multi-tenancy, the changes
 | **Auth** | Single hardcoded user | OAuth 2.0 (Google/LinkedIn sign-in), per-user data isolation |
 | **DB** | Single Postgres in Docker | Managed Postgres (Aurora Serverless v2) with point-in-time restore |
 | **AI rate limiting** | None | Per-user token budgets + Redis-based sliding-window rate limit |
-| **Cost protection** | OpenAI billing limit | Per-user spend caps + cached responses for identical inputs |
+| **Cost protection** | Anthropic spend limit | Per-user spend caps + cached responses for identical inputs |
 | **Compute** | Single EC2 | ECS Fargate with auto-scaling on a load balancer |
 | **CDN** | None | CloudFront in front of frontend, static asset caching |
 | **Observability** | `docker logs` | Sentry for errors, CloudWatch for metrics, structured logging |
@@ -230,7 +224,7 @@ The current cost (~$15/month) would scale roughly linearly with users until ~500
 
 ### Prerequisites
 - Docker Desktop
-- An OpenAI API key
+- An Anthropic API key (https://console.anthropic.com)
 
 ### Setup
 
@@ -240,7 +234,7 @@ cd stn-job-hunting-dashboard-with-ai
 
 # Configure
 cp backend/config.example.json backend/config.json
-# Edit backend/config.json - add your OpenAI key, set admin_username and admin_password
+# Edit backend/config.json - add your Anthropic key, set admin_username and admin_password
 
 # Run
 docker compose up -d --build
@@ -266,7 +260,7 @@ Open http://localhost:3000. Log in with the credentials you set in `config.json`
 │   │   ├── main.py          # FastAPI routes
 │   │   ├── models.py        # SQLAlchemy ORM models
 │   │   ├── schemas.py       # Pydantic request/response shapes
-│   │   ├── ai.py            # OpenAI integration with model quirk detection
+│   │   ├── ai.py            # Claude (Anthropic) integration
 │   │   ├── scraper.py       # BeautifulSoup-based URL extraction
 │   │   ├── auth.py          # JWT issuance and verification
 │   │   └── db.py            # SQLAlchemy session + lightweight migrations
