@@ -329,6 +329,45 @@ def tailor(
     return job
 
 
+@app.get("/jobs/{job_id}/cv")
+def download_cv(
+    job_id: int,
+    format: str = "pdf",
+    db: Session = Depends(get_db),
+    _: str = Depends(auth.require_read),
+):
+    """Download the AI-tailored CV for a job as a styled .pdf or .docx."""
+    fmt = (format or "pdf").lower()
+    if fmt not in ("pdf", "docx"):
+        raise HTTPException(400, "format must be 'docx' or 'pdf'")
+
+    job = db.get(models.Job, job_id)
+    if not job:
+        raise HTTPException(404, "not found")
+    cv = (job.tailored_docs or {}).get("cv")
+    if not cv or not cv.get("content"):
+        raise HTTPException(400, "No tailored CV has been generated for this job yet")
+
+    profile = db.get(models.Profile, 1)
+    safe_company = "".join(
+        c for c in (job.company or "") if c.isascii() and (c.isalnum() or c in " -_")
+    ).strip().replace(" ", "_") or "company"
+    filename = f"CV_{safe_company}.{fmt}"
+
+    if fmt == "docx":
+        data = cv_export.build_docx(profile, cv["content"])
+        media = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    else:
+        data = cv_export.build_pdf(profile, cv["content"])
+        media = "application/pdf"
+
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type=media,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 def _infer_platform(url: str) -> str:
     u = url.lower()
     if "linkedin" in u: return "LinkedIn"
