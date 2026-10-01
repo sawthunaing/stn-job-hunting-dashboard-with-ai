@@ -1,4 +1,8 @@
 """Database engine and session factory."""
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from .config import settings
@@ -18,5 +22,9 @@ def get_db() -> Session:
 
 
 def init_db() -> None:
-    """Create tables. For schema changes use ALTER manually or migrations."""
+    """Create missing tables, then apply Alembic migrations to existing ones."""
     Base.metadata.create_all(bind=engine)
+    backend_dir = Path(__file__).resolve().parent.parent
+    cfg = Config(str(backend_dir / "alembic.ini"))
+    cfg.set_main_option("script_location", str(backend_dir / "migrations"))
+    command.upgrade(cfg, "head")

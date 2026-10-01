@@ -1,7 +1,7 @@
 """Pydantic schemas for request/response bodies."""
 from datetime import datetime
-from typing import Optional, Any
-from pydantic import BaseModel, ConfigDict
+from typing import Optional, Any, Literal
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ============ JOBS ============
@@ -28,6 +28,11 @@ class JobCreate(JobBase):
 
 class JobFromUrl(BaseModel):
     url: str
+
+
+class JobFromIndeed(BaseModel):
+    url: str
+    page_text: Optional[str] = Field(default=None, max_length=200_000)
 
 
 class JobUpdate(BaseModel):
@@ -71,6 +76,7 @@ class JobDetail(BaseModel):
     work_type: Optional[str]
     platform: Optional[str]
     source_url: Optional[str]
+    source: Optional[str] = None
     description: Optional[str]
     salary_min: Optional[int]
     salary_max: Optional[int]
@@ -92,7 +98,7 @@ class JobDetail(BaseModel):
 
 
 class TailorRequest(BaseModel):
-    doc_type: str  # 'cv' | 'cover_letter' | 'recruiter_email'
+    doc_type: Literal["cv", "cover_letter", "recruiter_email"]
 
 
 # ============ PROFILE ============

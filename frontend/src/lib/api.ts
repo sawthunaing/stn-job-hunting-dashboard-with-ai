@@ -54,6 +54,7 @@ export interface JobDetail {
   work_type: WorkType | null;
   platform: string | null;
   source_url: string | null;
+  source?: string | null;
   description: string | null;
   salary_min: number | null;
   salary_max: number | null;
@@ -127,6 +128,17 @@ export function clearToken() {
   window.localStorage.removeItem(TOKEN_KEY);
 }
 
+export class ApiError extends Error {
+  status: number;
+  detail: any;
+  constructor(status: number, message: string, detail?: any) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 export class AuthError extends Error {
   constructor() { super("not authenticated"); this.name = "AuthError"; }
 }
@@ -150,7 +162,9 @@ async function req<T>(path: string, init: RequestInit = {}, options: { skipAuth?
   }
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`${res.status}: ${text || res.statusText}`);
+    let detail: any;
+    try { detail = JSON.parse(text).detail; } catch { /* not JSON */ }
+    throw new ApiError(res.status, `${res.status}: ${text || res.statusText}`, detail);
   }
   if (res.status === 204) return undefined as T;
   return res.json();
@@ -187,6 +201,11 @@ export const api = {
     req<JobDetail>("/jobs", { method: "POST", body: JSON.stringify(payload) }),
   createFromUrl: (url: string) =>
     req<JobDetail>("/jobs/from-url", { method: "POST", body: JSON.stringify({ url }) }),
+  createFromIndeed: (url: string, page_text?: string) =>
+    req<JobDetail>("/jobs/from-indeed", {
+      method: "POST",
+      body: JSON.stringify({ url, page_text: page_text || null }),
+    }),
   update: (id: number, patch: Partial<JobDetail>) =>
     req<JobDetail>(`/jobs/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   delete: (id: number) => req<void>(`/jobs/${id}`, { method: "DELETE" }),

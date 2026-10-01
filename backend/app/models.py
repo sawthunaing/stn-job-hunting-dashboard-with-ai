@@ -1,7 +1,7 @@
 """SQLAlchemy ORM models for the Job Hunting Dashboard."""
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Integer, Text, DateTime, JSON
+from sqlalchemy import String, Integer, Text, DateTime, JSON, Index
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -12,6 +12,7 @@ class Base(DeclarativeBase):
 class Job(Base):
     """A job posting and all derived AI analysis."""
     __tablename__ = "jobs"
+    __table_args__ = (Index("ix_jobs_source_external_id", "source", "external_id", unique=True),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
@@ -22,6 +23,8 @@ class Job(Base):
     work_type: Mapped[Optional[str]] = mapped_column(String(50))
     platform: Mapped[Optional[str]] = mapped_column(String(100))
     source_url: Mapped[Optional[str]] = mapped_column(String(1000))
+    source: Mapped[Optional[str]] = mapped_column(String(50))
+    external_id: Mapped[Optional[str]] = mapped_column(String(100))
     description: Mapped[Optional[str]] = mapped_column(Text)
     salary_min: Mapped[Optional[int]] = mapped_column(Integer)
     salary_max: Mapped[Optional[int]] = mapped_column(Integer)

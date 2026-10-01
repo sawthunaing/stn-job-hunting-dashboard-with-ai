@@ -154,7 +154,7 @@ Check [Anthropic's pricing page](https://www.anthropic.com/pricing) for current 
 
 ### 🎯 AI-powered URL extraction
 
-Paste a job listing URL from LinkedIn, Indeed, Otta, Workday, or any company careers page. The backend scrapes the page, sanitises the HTML, and feeds it to Claude for structured extraction:
+Paste a job listing URL from LinkedIn, Indeed, Otta, Workday, or any company careers page. The backend fetches the page (public hosts only, SSRF-guarded), sanitises the HTML, and feeds it to Claude for structured extraction. Indeed links are imported by job id with duplicate detection; if Indeed blocks the server, paste the posting text from your browser instead:
 
 - Company name, role title, location, work type (remote/hybrid/onsite)
 - Salary range with currency normalisation
@@ -261,7 +261,8 @@ Open http://localhost:3000. Log in with the credentials you set in `config.json`
 │   │   ├── models.py        # SQLAlchemy ORM models
 │   │   ├── schemas.py       # Pydantic request/response shapes
 │   │   ├── ai.py            # Claude (Anthropic) integration
-│   │   ├── scraper.py       # BeautifulSoup-based URL extraction
+│   │   ├── scraper.py       # SSRF-guarded fetch + BeautifulSoup text extraction
+│   │   ├── indeed.py        # Indeed URL parsing / job-id import helpers
 │   │   ├── auth.py          # JWT issuance and verification
 │   │   └── db.py            # SQLAlchemy session + lightweight migrations
 │   ├── Dockerfile

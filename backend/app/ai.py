@@ -16,10 +16,19 @@ from __future__ import annotations
 import json
 import re
 from typing import Any
+import anthropic
 from anthropic import Anthropic
 from sqlalchemy.orm import Session
 from . import models
 from .config import settings
+
+
+class AIError(Exception):
+    """An AI call failed. `status_code` is the HTTP status the API should return."""
+
+    def __init__(self, message: str, status_code: int = 502):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 _client: Anthropic | None = None
@@ -29,7 +38,7 @@ def client() -> Anthropic:
     global _client
     if _client is None:
         if not settings.anthropic_api_key:
-            raise RuntimeError("ANTHROPIC_API_KEY not set")
+            raise AIError("AI is not configured: ANTHROPIC_API_KEY not set", status_code=503)
         _client = Anthropic(api_key=settings.anthropic_api_key)
     return _client
 
@@ -91,29 +100,44 @@ def _call_json(system: str, user: str, max_output_tokens: int = 4096) -> dict[st
     """Call Claude and return the parsed JSON object.
 
     We append a strict instruction to the system prompt to return only JSON,
-    then defensively strip any markdown fences before parsing.
+    then defensively strip any markdown fences before parsing. A malformed or
+    truncated reply is retried once; persistent failures raise AIError.
     """
     system_json = system + (
         "\n\nIMPORTANT: Respond with ONLY a single valid JSON object. "
         "No markdown, no code fences, no text before or after the JSON."
     )
 
-    resp = client().messages.create(
-        model=settings.anthropic_model,
-        max_tokens=max_output_tokens,
-        temperature=0.4,
-        system=system_json,
-        messages=[{"role": "user", "content": user}],
-    )
+    last_problem = ""
+    for _ in range(2):
+        try:
+            resp = client().messages.create(
+                model=settings.anthropic_model,
+                max_tokens=max_output_tokens,
+                temperature=0.4,
+                system=system_json,
+                messages=[{"role": "user", "content": user}],
+            )
+        except anthropic.APIStatusError as e:
+            raise AIError(f"AI provider error (HTTP {e.status_code})") from e
+        except anthropic.APIConnectionError as e:
+            raise AIError("Could not reach the AI provider") from e
 
-    # Concatenate text blocks (usually just one)
-    text = "".join(getattr(b, "text", "") for b in resp.content)
-    text = _strip_fences(text) or "{}"
+        text = "".join(getattr(b, "text", "") for b in resp.content)
+        text = _strip_fences(text) or "{}"
+        if resp.stop_reason == "max_tokens":
+            last_problem = "AI response was cut off before completing"
+            continue
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            last_problem = "AI returned a malformed response"
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+        last_problem = "AI returned an unexpected response shape"
 
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Claude returned non-JSON: {text[:500]}") from e
+    raise AIError(last_problem)
 
 
 # ============================================================================
