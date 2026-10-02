@@ -24,7 +24,7 @@ An index of the reusable AI workflows in this repo. Claude Code loads these auto
 | `/spec <feature idea>` | Write a feature spec in `docs/specs/` from `docs/templates/feature-spec.md` |
 | `/adr <decision title>` | Record an architecture decision in `docs/decisions/` |
 | `/check` | Run the project's verification checks (compile, lint, typecheck, build) |
-| `/review-pr` | Review the current diff against the CLAUDE.md conventions |
+| `/review-pr [low\|medium\|high\|xhigh\|max]` | Review the current diff against the CLAUDE.md conventions, then run Claude Code's built-in `/code-review` bug hunt and merge both into one report |
 | `/tune-prompt <analysis\|prep\|research\|tailor\|extract>` | Iterate on a Claude system prompt in `ai.py` safely |
 
 ## Templates (for AI-structured work)
