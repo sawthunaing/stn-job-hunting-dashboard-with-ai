@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { RefreshCw, Sparkles, Copy, FileText } from "lucide-react";
+import { RefreshCw, Sparkles, Copy, FileText, Download } from "lucide-react";
 import { api, type JobDetail } from "@/lib/api";
 import { ActionButton } from "../ui";
 
@@ -15,6 +15,7 @@ const DOC_LABELS: Record<DocType, string> = {
 export function TailoredCVTab({ job, onUpdate }: { job: JobDetail; onUpdate: (j: JobDetail) => void }) {
   const [docType, setDocType] = useState<DocType>("cv");
   const [busy, setBusy] = useState(false);
+  const [downloading, setDownloading] = useState<"pdf" | "docx" | null>(null);
 
   const doc = job.tailored_docs?.[docType];
 
@@ -23,6 +24,13 @@ export function TailoredCVTab({ job, onUpdate }: { job: JobDetail; onUpdate: (j:
     try { onUpdate(await api.tailor(job.id, docType)); }
     catch (e: any) { alert(e.message); }
     finally { setBusy(false); }
+  }
+
+  async function download(format: "pdf" | "docx") {
+    setDownloading(format);
+    try { await api.downloadCV(job.id, format); }
+    catch (e: any) { alert(e.message); }
+    finally { setDownloading(null); }
   }
 
   return (
@@ -73,6 +81,18 @@ export function TailoredCVTab({ job, onUpdate }: { job: JobDetail; onUpdate: (j:
                 <div className="px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-[10px] text-blue-300 font-medium">
                   Keywords: {(doc.keywords_matched?.length ?? 0)}/{(doc.keywords_matched?.length ?? 0) + (doc.keywords_missing?.length ?? 0)}
                 </div>
+                {docType === "cv" && (["pdf", "docx"] as const).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => download(f)}
+                    disabled={downloading !== null}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded border border-zinc-700 text-[10px] text-zinc-300 font-medium hover:bg-zinc-800/60 disabled:opacity-50"
+                    title={`Download as ${f.toUpperCase()}`}
+                  >
+                    <Download className="w-3 h-3" />
+                    {downloading === f ? "..." : f.toUpperCase()}
+                  </button>
+                ))}
                 <button
                   onClick={() => navigator.clipboard.writeText(doc.content)}
                   className="text-zinc-500 hover:text-zinc-200 p-1.5 rounded hover:bg-zinc-800/60"

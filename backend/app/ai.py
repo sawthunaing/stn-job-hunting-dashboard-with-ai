@@ -16,10 +16,19 @@ from __future__ import annotations
 import json
 import re
 from typing import Any
+import anthropic
 from anthropic import Anthropic
 from sqlalchemy.orm import Session
 from . import models
 from .config import settings
+
+
+class AIError(Exception):
+    """An AI call failed. `status_code` is the HTTP status the API should return."""
+
+    def __init__(self, message: str, status_code: int = 502):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 _client: Anthropic | None = None
@@ -29,7 +38,7 @@ def client() -> Anthropic:
     global _client
     if _client is None:
         if not settings.anthropic_api_key:
-            raise RuntimeError("ANTHROPIC_API_KEY not set")
+            raise AIError("AI is not configured: ANTHROPIC_API_KEY not set", status_code=503)
         _client = Anthropic(api_key=settings.anthropic_api_key)
     return _client
 
@@ -91,29 +100,44 @@ def _call_json(system: str, user: str, max_output_tokens: int = 4096) -> dict[st
     """Call Claude and return the parsed JSON object.
 
     We append a strict instruction to the system prompt to return only JSON,
-    then defensively strip any markdown fences before parsing.
+    then defensively strip any markdown fences before parsing. A malformed or
+    truncated reply is retried once; persistent failures raise AIError.
     """
     system_json = system + (
         "\n\nIMPORTANT: Respond with ONLY a single valid JSON object. "
         "No markdown, no code fences, no text before or after the JSON."
     )
 
-    resp = client().messages.create(
-        model=settings.anthropic_model,
-        max_tokens=max_output_tokens,
-        temperature=0.4,
-        system=system_json,
-        messages=[{"role": "user", "content": user}],
-    )
+    last_problem = ""
+    for _ in range(2):
+        try:
+            resp = client().messages.create(
+                model=settings.anthropic_model,
+                max_tokens=max_output_tokens,
+                temperature=0.4,
+                system=system_json,
+                messages=[{"role": "user", "content": user}],
+            )
+        except anthropic.APIStatusError as e:
+            raise AIError(f"AI provider error (HTTP {e.status_code})") from e
+        except anthropic.APIConnectionError as e:
+            raise AIError("Could not reach the AI provider") from e
 
-    # Concatenate text blocks (usually just one)
-    text = "".join(getattr(b, "text", "") for b in resp.content)
-    text = _strip_fences(text) or "{}"
+        text = "".join(getattr(b, "text", "") for b in resp.content)
+        text = _strip_fences(text) or "{}"
+        if resp.stop_reason == "max_tokens":
+            last_problem = "AI response was cut off before completing"
+            continue
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            last_problem = "AI returned a malformed response"
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+        last_problem = "AI returned an unexpected response shape"
 
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Claude returned non-JSON: {text[:500]}") from e
+    raise AIError(last_problem)
 
 
 # ============================================================================
@@ -203,27 +227,28 @@ def tailor_doc(db: Session, description: str, role: str, company: str, doc_type:
     instructions = {
         "cv": (
             "Generate a tailored CV in markdown using EXACTLY this section order and structure:\n\n"
-            "## Professional Summary\n"
-            "<3-4 sentences tailored to THIS job, drawing only on the candidate's real background>\n\n"
-            "## Core Skills\n"
-            "- **<Category>:** <comma-separated skills relevant to this job>\n"
-            "<3-6 category lines, most JD-relevant categories first>\n\n"
-            "## Certifications\n"
-            "- <certification from the profile>\n\n"
-            "## Professional Experience\n"
-            "### <Job Title> • <Company, Location> @@ <Start - End>\n"
-            "- <achievement bullet, reordered and re-emphasised for THIS job's priorities>\n"
-            "<include the 3-4 most relevant roles, most recent first; 2-5 bullets each>\n\n"
+            "## Summary\n"
+            "<one paragraph of 3-4 sentences tailored to THIS job, drawing only on the candidate's real "
+            "background. Use **bold** for the opening role phrase and a few key technologies/competencies>\n\n"
             "## Education\n"
-            "### <Degree> • <Institution> @@ <Start - End>\n\n"
-            "## Awards & Achievements\n"
-            "- <award from the profile>\n\n"
+            "### <Degree> | <Institution> | <City, Country> | <Start - End>\n"
+            "- <optional detail bullet: module, certification or major from the profile>\n\n"
+            "## Work Experience\n"
+            "### <Job Title> | <Company> | <Start - End> | <City, Country (Remote if applicable)>\n"
+            "- <achievement bullet, reordered and re-emphasised for THIS job's priorities>\n"
+            "<include the 3-4 most relevant roles, most recent first; 2-4 bullets each>\n\n"
+            "## Skills, Languages, Professional Memberships, & Certificates\n"
+            "**Certifications:** <comma-separated certifications from the profile>\n"
+            "**Skills:** <comma-separated skills, most JD-relevant first>\n"
+            "**Languages:** <languages from the profile>\n\n"
             "CRITICAL FORMATTING RULES:\n"
-            "1. On every Experience and Education heading, put ' @@ ' (space-at-at-space) "
-            "between the role/company and the dates. This is required for date alignment.\n"
-            "2. Use '•' between job title and company.\n"
-            "3. Do NOT output a name/title/contact header - that is added separately.\n"
-            "4. Pull every role, date, certification and award from the candidate profile. "
+            "1. Every Education and Work Experience heading is a single '### ' line with the parts "
+            "separated by ' | ' (space, pipe, space). Do not use '@@' or '•' separators.\n"
+            "2. Label rows in the last section are single lines of the form '**Label:** value' with no "
+            "bullet marker.\n"
+            "3. Do NOT output a name or contact header - that is added separately.\n"
+            "4. Omit any section or label row the profile has no data for.\n"
+            "5. Pull every role, date, certification and award from the candidate profile. "
             "Never invent experience, dates, employers, or achievements. You may rephrase and "
             "reorder bullets to match the JD, but the underlying facts must come from the profile."
         ),

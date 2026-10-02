@@ -1,0 +1,45 @@
+# HTTPS front door (Caddy). Layer it on top of the base stack:
+#
+#   Local (Docker Desktop):
+#     docker compose -f docker-compose.yml -f docker-compose.https.yml up -d --build
+#     open https://localhost
+#
+#   EC2 / real domain:
+#     SITE_ADDRESS=jobs.example.com PUBLIC_API_URL=https://jobs.example.com/api \
+#       docker compose -f docker-compose.prod.yml -f docker-compose.https.yml up -d --build
+#
+# The browser only talks to Caddy on 80/443. The app containers stop
+# publishing their own ports, and the API sees real client IPs (needed by the
+# login rate limiter) through the X-Forwarded-For header Caddy sets.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - frontend
+
+  api:
+    ports: !reset []
+    environment:
+      FORWARDED_ALLOW_IPS: "*"
+      CORS_ORIGIN: https://${SITE_ADDRESS:-localhost}
+
+  frontend:
+    ports: !reset []
+    environment:
+      NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-https://localhost/api}
+
+volumes:
+  caddy_data:
+  caddy_config:

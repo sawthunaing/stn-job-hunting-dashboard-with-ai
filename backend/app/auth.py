@@ -71,6 +71,8 @@ def require_auth(authorization: str = Header(default="")) -> str:
     """FastAPI dependency: verify Authorization: Bearer <token>. Returns username."""
     if settings.admin_password == "change-me-before-deploying":
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "admin password not configured")
+    if settings.jwt_secret == "change-me-before-deploying":
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "jwt secret not configured")
 
     if not authorization.startswith("Bearer "):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "missing bearer token")

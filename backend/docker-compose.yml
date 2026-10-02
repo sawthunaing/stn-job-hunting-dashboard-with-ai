@@ -20,7 +20,7 @@ services:
     build: .
     volumes:
       # Mount config.json read-only into the container - this is where the
-      # backend reads its credentials and OpenAI key from.
+      # backend reads its credentials and Anthropic key from.
       - ./config.json:/app/config.json:ro
     environment:
       # Override DATABASE_URL so it points to the docker network db hostname
