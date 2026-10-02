@@ -237,5 +237,5 @@ export const api = {
   },
 
   /** Public endpoint - returns { demo_mode: boolean } so the UI can adapt. */
-  demoInfo: () => req<{ demo_mode: boolean }>("/demo-info"),
+  demoInfo: () => req<{ demo_mode: boolean }>("/demo-info", {}, { skipAuth: true }),
 };
