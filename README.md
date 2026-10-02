@@ -267,6 +267,26 @@ In this mode the frontend is served at `/` and the API at `/api` on the same ori
 3. Paste any job URL — the AI extracts everything
 4. Click **AI Re-analyze** on the job to compute fit score
 
+### Running the tests
+
+No Postgres, API key or network needed: the backend tests use a throwaway SQLite database and a fake Claude client, and the frontend tests mock `fetch`.
+
+```bash
+# Backend (pytest)
+cd backend
+pip install -r requirements-dev.txt
+pytest                      # everything
+pytest tests/unit           # pure functions: auth/JWT, config, AI prompt building, scraper, CV export
+pytest tests/integration    # real FastAPI app + DB over HTTP: auth, profile, jobs, AI endpoints
+
+# Frontend (Vitest + React Testing Library)
+cd frontend
+npm install
+npm test                    # everything
+npm run test:unit           # API client, UI helpers
+npm run test:integration    # login page, AuthGuard, add-from-URL modal wired to the real API client
+```
+
 ---
 
 ## Project structure
