@@ -33,3 +33,4 @@ infra/terraform.tfvars
 infra/terraform.tfvars
 
 replacements.txt
+*.tsbuildinfo
