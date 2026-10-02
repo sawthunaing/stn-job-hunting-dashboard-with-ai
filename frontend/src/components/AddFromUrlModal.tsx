@@ -1,7 +1,9 @@
 "use client";
 import { useState } from "react";
 import { X, Sparkles, Link2, Pencil } from "lucide-react";
-import { api, type JobDetail } from "@/lib/api";
+import { api, ApiError, type JobDetail } from "@/lib/api";
+
+const INDEED_RE = /^https?:\/\/([^/]*\.)?indeed\.[a-z.]+\//i;
 
 interface Props {
   onClose: () => void;
@@ -14,16 +16,30 @@ export function AddFromUrlModal({ onClose, onCreated, onSwitchToManual }: Props)
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pasteText, setPasteText] = useState("");
+  const [needsPaste, setNeedsPaste] = useState(false);
+  const isIndeed = INDEED_RE.test(url.trim());
 
   async function submit() {
     if (!url) return;
     setBusy(true);
     setError(null);
     try {
-      const job = await api.createFromUrl(url);
+      const job = isIndeed
+        ? await api.createFromIndeed(url.trim(), pasteText)
+        : await api.createFromUrl(url.trim());
       onCreated(job);
     } catch (e: any) {
-      setError(e.message || "Failed to scrape URL");
+      if (e instanceof ApiError && isIndeed && e.status === 422) {
+        setNeedsPaste(true);
+        setError(typeof e.detail === "string" ? e.detail : "Indeed blocked automated access.");
+      } else if (e instanceof ApiError && e.status === 409) {
+        setError("You already imported this job.");
+      } else if (e instanceof ApiError && typeof e.detail === "string") {
+        setError(e.detail);
+      } else {
+        setError(e.message || "Failed to scrape URL");
+      }
     } finally {
       setBusy(false);
     }
@@ -38,7 +54,7 @@ export function AddFromUrlModal({ onClose, onCreated, onSwitchToManual }: Props)
         <div className="flex items-center justify-between p-5 border-b border-zinc-800">
           <div>
             <div className="text-zinc-100 font-semibold text-sm">Add job</div>
-            <div className="text-zinc-500 text-xs mt-0.5">Paste a posting URL — ChatGPT will extract the details</div>
+            <div className="text-zinc-500 text-xs mt-0.5">Paste a posting URL — Claude will extract the details</div>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200">
             <X className="w-4 h-4" />
@@ -56,13 +72,22 @@ export function AddFromUrlModal({ onClose, onCreated, onSwitchToManual }: Props)
               onKeyDown={(e) => e.key === "Enter" && submit()}
             />
           </div>
+          {isIndeed && needsPaste && (
+            <textarea
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              rows={8}
+              placeholder="Open the Indeed posting in your browser, select all, copy, and paste the text here"
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-3 py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/40"
+            />
+          )}
           {error && (
             <div className="p-3 rounded-md bg-red-500/10 border border-red-500/20 text-xs text-red-300">
               {error}
             </div>
           )}
           <div className="text-[11px] text-zinc-600">
-            Note: LinkedIn often blocks scrapers. Greenhouse, Lever, Ashby, and direct company career pages work best.
+            Indeed links are imported by job id; if Indeed blocks the server you can paste the posting text instead. LinkedIn also often blocks scrapers. Greenhouse, Lever, Ashby, and direct company career pages work best.
           </div>
         </div>
         <div className="flex justify-between gap-2 p-5 border-t border-zinc-800">
@@ -83,7 +108,7 @@ export function AddFromUrlModal({ onClose, onCreated, onSwitchToManual }: Props)
               className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Sparkles className={`w-3.5 h-3.5 ${busy ? "animate-spin" : ""}`} />
-              {busy ? "Scraping..." : "Scrape & Add"}
+              {busy ? "Importing..." : needsPaste && pasteText ? "Import pasted text" : "Scrape & Add"}
             </button>
           </div>
         </div>

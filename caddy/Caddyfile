@@ -1,0 +1,26 @@
+# Reverse proxy that terminates HTTPS in front of the app.
+#
+#   https://<site>/       -> frontend (Next.js)
+#   https://<site>/api/*  -> backend (FastAPI), with the /api prefix stripped
+#
+# SITE_ADDRESS defaults to "localhost", for which Caddy issues a certificate
+# from its own local CA. Set it to a real domain (DNS pointing at this host,
+# ports 80/443 open) and Caddy obtains a Let's Encrypt certificate instead.
+{$SITE_ADDRESS:localhost} {
+	encode gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		-Server
+	}
+
+	handle_path /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

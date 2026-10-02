@@ -1,17 +1,19 @@
 """FastAPI application."""
 from datetime import datetime
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
+from sqlalchemy.exc import IntegrityError
 
-from . import models, schemas, ai, scraper, auth
+from . import models, schemas, ai, scraper, auth, indeed
+from .ratelimit import LoginLimiter
 from .config import settings
 from .db import get_db, init_db
 
 import io
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from . import cv_export
 
 
@@ -24,6 +26,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(ai.AIError)
+def ai_error_handler(_: Request, exc: ai.AIError):
+    return JSONResponse(status_code=exc.status_code, content={"detail": str(exc)})
 
 
 @app.on_event("startup")
@@ -44,10 +51,23 @@ class LoginResponse(BaseModel):
     expires_in_hours: int
 
 
+login_limiter = LoginLimiter(settings.login_max_attempts, settings.login_window_seconds)
+
+
 @app.post("/auth/login", response_model=LoginResponse)
-def login(payload: LoginRequest):
+def login(payload: LoginRequest, request: Request):
+    ip = request.client.host if request.client else "unknown"
+    wait = login_limiter.retry_after(ip)
+    if wait:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            f"Too many failed login attempts. Try again in {max(1, wait // 60)} min.",
+            headers={"Retry-After": str(wait)},
+        )
     if not auth.authenticate(payload.username, payload.password):
+        login_limiter.record_failure(ip)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid credentials")
+    login_limiter.reset(ip)
     token = auth.issue_token(payload.username)
     return LoginResponse(token=token, username=payload.username, expires_in_hours=settings.jwt_ttl_hours)
 
@@ -146,8 +166,12 @@ async def create_from_url(
 ):
     try:
         page_text = await scraper.fetch_page(payload.url)
-    except Exception as e:
-        raise HTTPException(400, f"fetch failed: {e}")
+    except scraper.UnsafeURLError as e:
+        raise HTTPException(400, str(e))
+    except scraper.FetchBlockedError:
+        raise HTTPException(422, "The site blocked automated access to that page")
+    except Exception:
+        raise HTTPException(400, "Could not fetch that URL")
 
     extracted = ai.extract_job_from_html(page_text, payload.url)
 
@@ -166,6 +190,64 @@ async def create_from_url(
     )
     db.add(job)
     db.commit()
+    db.refresh(job)
+    return job
+
+
+@app.post("/jobs/from-indeed", response_model=schemas.JobDetail, status_code=201)
+async def create_from_indeed(
+    payload: schemas.JobFromIndeed,
+    db: Session = Depends(get_db),
+    _: str = Depends(auth.require_write),
+):
+    try:
+        job_key, canonical_url = indeed.parse_indeed_url(payload.url)
+    except indeed.NotIndeedURLError as e:
+        raise HTTPException(400, str(e))
+
+    existing = (
+        db.query(models.Job)
+        .filter(models.Job.source == indeed.SOURCE, models.Job.external_id == job_key)
+        .first()
+    )
+    if existing:
+        raise HTTPException(409, {"message": "Already imported", "job_id": existing.id})
+
+    page_text = (payload.page_text or "").strip()
+    if not page_text:
+        try:
+            page_text = await scraper.fetch_page(canonical_url)
+        except Exception:
+            page_text = ""
+        if not page_text or indeed.looks_like_challenge(page_text):
+            raise HTTPException(
+                422,
+                "Indeed blocked automated access. Open the posting in your browser, "
+                "copy the page text, and paste it in.",
+            )
+
+    extracted = ai.extract_job_from_html(page_text, canonical_url)
+    job = models.Job(
+        company=extracted.get("company") or "Unknown",
+        role=extracted.get("role") or "Unknown",
+        location=extracted.get("location"),
+        work_type=extracted.get("work_type"),
+        platform="Indeed",
+        source=indeed.SOURCE,
+        external_id=job_key,
+        source_url=canonical_url,
+        description=extracted.get("description"),
+        salary_min=extracted.get("salary_min"),
+        salary_max=extracted.get("salary_max"),
+        currency=extracted.get("currency") or "GBP",
+        status="New",
+    )
+    db.add(job)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, {"message": "Already imported"})
     db.refresh(job)
     return job
 
@@ -259,6 +341,45 @@ def tailor(
     db.commit()
     db.refresh(job)
     return job
+
+
+@app.get("/jobs/{job_id}/cv")
+def download_cv(
+    job_id: int,
+    format: str = "pdf",
+    db: Session = Depends(get_db),
+    _: str = Depends(auth.require_read),
+):
+    """Download the AI-tailored CV for a job as a styled .pdf or .docx."""
+    fmt = (format or "pdf").lower()
+    if fmt not in ("pdf", "docx"):
+        raise HTTPException(400, "format must be 'docx' or 'pdf'")
+
+    job = db.get(models.Job, job_id)
+    if not job:
+        raise HTTPException(404, "not found")
+    cv = (job.tailored_docs or {}).get("cv")
+    if not cv or not cv.get("content"):
+        raise HTTPException(400, "No tailored CV has been generated for this job yet")
+
+    profile = db.get(models.Profile, 1)
+    safe_company = "".join(
+        c for c in (job.company or "") if c.isascii() and (c.isalnum() or c in " -_")
+    ).strip().replace(" ", "_") or "company"
+    filename = f"CV_{safe_company}.{fmt}"
+
+    if fmt == "docx":
+        data = cv_export.build_docx(profile, cv["content"])
+        media = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    else:
+        data = cv_export.build_pdf(profile, cv["content"])
+        media = "application/pdf"
+
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type=media,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 def _infer_platform(url: str) -> str:

@@ -151,7 +151,7 @@ If you have time, draw this in **excalidraw.com** (no signup):
             │  └──┬───────┬──┘  │
             │     │       │     │
             │  ┌──▼──┐ ┌─▼────┐ │
-            │  │  DB │ │OpenAI│ │
+            │  │  DB │ │Claude│ │
             │  │ Pg16│ │  API │ │
             │  └─────┘ └──────┘ │
             └───────────────────┘
