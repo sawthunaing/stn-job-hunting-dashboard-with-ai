@@ -1,0 +1,6 @@
+- [ ] **B-### · P? · S|M|L: <imperative title>**
+  - **Why:** <user or engineering value, one line>
+  - **Where:** `<file paths>`
+  - **What:** <the change in 1–3 bullets>
+  - **Acceptance:** <observable outcome that proves it is done>
+  - **Depends on:** B-### (optional) · **Spec:** `docs/specs/<file>.md` (optional)
