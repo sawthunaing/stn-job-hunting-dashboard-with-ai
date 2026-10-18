@@ -51,9 +51,42 @@ describe("AddFromUrlModal + API client", () => {
     const { input, submit } = setup();
     await userEvent.type(input, "https://x.com");
     await userEvent.click(submit);
-    expect(screen.getByRole("button", { name: /scraping/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /importing/i })).toBeDisabled();
     resolve(jsonResponse({ id: 1 }, 201));
     expect(await screen.findByRole("button", { name: /scrape & add/i })).toBeInTheDocument();
+  });
+
+  it("sends CV-Library URLs to the CV-Library route", async () => {
+    const job = { id: 4, company: "Acme", role: "Engineer" };
+    const fetch = mockFetch(jsonResponse(job, 201));
+    const { input, submit, onCreated } = setup();
+    await userEvent.type(input, "https://www.cv-library.co.uk/job/223456789/Developer");
+    await userEvent.click(submit);
+    expect(fetch).toHaveBeenCalledWith(`${API}/jobs/from-cvlibrary`, expect.objectContaining({ method: "POST" }));
+    expect(JSON.parse(fetch.mock.calls[0][1]!.body as string)).toEqual({
+      url: "https://www.cv-library.co.uk/job/223456789/Developer",
+      page_text: null,
+    });
+    expect(onCreated).toHaveBeenCalledWith(job);
+  });
+
+  it("asks for pasted text when CV-Library blocks the fetch", async () => {
+    mockFetch(jsonResponse({ detail: "CV-Library blocked automated access." }, 422));
+    const { input, submit } = setup();
+    await userEvent.type(input, "https://www.cv-library.co.uk/job/1");
+    await userEvent.click(submit);
+    expect(await screen.findByText(/CV-Library blocked automated access/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/open the CV-Library posting/i)).toBeInTheDocument();
+  });
+
+  it("links to the existing job on a duplicate import", async () => {
+    mockFetch(jsonResponse({ detail: { message: "Already imported", job_id: 7 } }, 409));
+    const { input, submit, onCreated } = setup();
+    await userEvent.type(input, "https://www.cv-library.co.uk/job/1");
+    await userEvent.click(submit);
+    expect(await screen.findByText(/already imported/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /open the existing job/i })).toHaveAttribute("href", "/applications?job=7");
+    expect(onCreated).not.toHaveBeenCalled();
   });
 
   it("wires up the close and manual-entry buttons", async () => {

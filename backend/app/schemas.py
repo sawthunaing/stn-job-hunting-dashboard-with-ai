@@ -35,6 +35,11 @@ class JobFromIndeed(BaseModel):
     page_text: Optional[str] = Field(default=None, max_length=200_000)
 
 
+class JobFromCVLibrary(BaseModel):
+    url: str
+    page_text: Optional[str] = Field(default=None, max_length=200_000)
+
+
 class JobUpdate(BaseModel):
     company: Optional[str] = None
     role: Optional[str] = None
