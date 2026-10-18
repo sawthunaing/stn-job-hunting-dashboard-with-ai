@@ -12,21 +12,25 @@ from app.config import settings
 
 
 class FakeMessages:
-    def __init__(self, text):
+    def __init__(self, text, stop_reason="end_turn"):
         self.text = text
+        self.stop_reason = stop_reason
         self.calls = []
 
     def create(self, **kwargs):
         self.calls.append(kwargs)
         texts = self.text if isinstance(self.text, list) else [self.text]
-        return SimpleNamespace(content=[SimpleNamespace(type="text", text=t) for t in texts])
+        return SimpleNamespace(
+            content=[SimpleNamespace(type="text", text=t) for t in texts],
+            stop_reason=self.stop_reason,
+        )
 
 
 @pytest.fixture
 def fake_claude(monkeypatch):
     """Returns a factory: fake_claude('{"a": 1}') installs a client replying with that text."""
-    def install(text):
-        messages = FakeMessages(text)
+    def install(text, stop_reason="end_turn"):
+        messages = FakeMessages(text, stop_reason)
         monkeypatch.setattr(ai, "client", lambda: SimpleNamespace(messages=messages))
         return messages
     return install
@@ -60,8 +64,9 @@ class TestClient:
     def test_raises_without_api_key(self, monkeypatch):
         monkeypatch.setattr(ai, "_client", None)
         monkeypatch.setattr(settings, "anthropic_api_key", "")
-        with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
+        with pytest.raises(ai.AIError, match="ANTHROPIC_API_KEY") as exc:
             ai.client()
+        assert exc.value.status_code == 503
 
     def test_is_cached(self, monkeypatch):
         monkeypatch.setattr(ai, "_client", None)
@@ -133,10 +138,17 @@ class TestCallJson:
         fake_claude("")
         assert ai._call_json("sys", "user") == {}
 
-    def test_non_json_raises_value_error(self, fake_claude):
-        fake_claude("Sorry, I can't help with that.")
-        with pytest.raises(ValueError, match="non-JSON"):
+    def test_non_json_retries_once_then_raises(self, fake_claude):
+        msgs = fake_claude("Sorry, I can't help with that.")
+        with pytest.raises(ai.AIError, match="malformed"):
             ai._call_json("sys", "user")
+        assert len(msgs.calls) == 2
+
+    def test_truncated_reply_retries_once_then_raises(self, fake_claude):
+        msgs = fake_claude('{"a": 1', stop_reason="max_tokens")
+        with pytest.raises(ai.AIError, match="cut off"):
+            ai._call_json("sys", "user")
+        assert len(msgs.calls) == 2
 
     def test_request_shape(self, fake_claude, monkeypatch):
         monkeypatch.setattr(settings, "anthropic_model", "claude-test-model")
@@ -177,7 +189,7 @@ class TestAiFunctions:
         assert user == "Company: Acme\nRole being interviewed for: Engineer"
 
     @pytest.mark.parametrize("doc_type,marker", [
-        ("cv", "## Professional Summary"),
+        ("cv", "## Work Experience"),
         ("cover_letter", "cover letter"),
         ("recruiter_email", "outreach email"),
     ])

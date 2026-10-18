@@ -13,8 +13,12 @@ def run(coro):
 
 @pytest.fixture
 def mock_http(monkeypatch):
-    """mock_http(handler) routes every httpx.AsyncClient request through handler."""
+    """mock_http(handler) routes every httpx.AsyncClient request through handler.
+
+    The public-host DNS check is stubbed too, so tests never touch the network.
+    """
     real_client = httpx.AsyncClient
+    monkeypatch.setattr(scraper, "_resolve_public", lambda host, port: None)
 
     def install(handler):
         def factory(*args, **kwargs):
@@ -78,7 +82,14 @@ def test_follows_redirects(mock_http):
     assert run(scraper.fetch_page("https://e.com/old")) == "Moved here"
 
 
+@pytest.mark.parametrize("status", [403, 429, 503])
+def test_bot_protection_status_raises_blocked(mock_http, status):
+    mock_http(lambda req: httpx.Response(status, text="blocked"))
+    with pytest.raises(scraper.FetchBlockedError):
+        run(scraper.fetch_page("https://linkedin.com/jobs/1"))
+
+
 def test_http_error_raises(mock_http):
-    mock_http(lambda req: httpx.Response(403, text="blocked"))
+    mock_http(lambda req: httpx.Response(500, text="oops"))
     with pytest.raises(httpx.HTTPStatusError):
         run(scraper.fetch_page("https://linkedin.com/jobs/1"))

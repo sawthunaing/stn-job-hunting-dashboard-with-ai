@@ -51,17 +51,18 @@ class TestSplitBold:
         assert cv_export._split_bold("**oops") == [("**oops", False)]
 
 
-class TestSplitHeadingDates:
+class TestEntryHeading:
+    """An entry is one line; only the legacy " @@ " separator is rewritten (to " | ")."""
     @pytest.mark.parametrize("text,expected", [
-        ("Engineer • Acme @@ 2020 - 2024", ("Engineer • Acme", "2020 - 2024")),
-        ("Engineer • Acme @@ Jan 2020 – Present", ("Engineer • Acme", "Jan 2020 – Present")),
-        ("Engineer • Acme (2015 - 2019)", ("Engineer • Acme", "2015 - 2019")),
-        ("Engineer • Acme | Mar 2018 – Current", ("Engineer • Acme", "Mar 2018 – Current")),
-        ("Engineer • Acme — Sept. 2018 - Dec. 2019", ("Engineer • Acme", "Sept. 2018 - Dec. 2019")),
-        ("Engineer at Acme", ("Engineer at Acme", None)),
+        ("Engineer • Acme @@ 2020 - 2024", "Engineer • Acme | 2020 - 2024"),
+        ("Engineer • Acme @@ Jan 2020 – Present", "Engineer • Acme | Jan 2020 – Present"),
+        ("Engineer • Acme (2015 - 2019)", "Engineer • Acme (2015 - 2019)"),
+        ("Engineer • Acme | Mar 2018 – Current", "Engineer • Acme | Mar 2018 – Current"),
+        ("Engineer • Acme — Sept. 2018 - Dec. 2019", "Engineer • Acme — Sept. 2018 - Dec. 2019"),
+        ("Engineer at Acme", "Engineer at Acme"),
     ])
     def test_cases(self, text, expected):
-        assert cv_export._split_heading_dates(text) == expected
+        assert cv_export._parse_blocks(f"### {text}") == [{"kind": "entry", "text": expected}]
 
 
 class TestParseBlocks:
@@ -72,11 +73,10 @@ class TestParseBlocks:
                          "entry", "bullets", "h2", "entry"]
         assert blocks[0]["text"] == "Jane Doe"
         assert blocks[4]["items"] == ["**Languages:** Python, Go", "**Cloud:** AWS"]
-        assert blocks[6] == {"kind": "entry", "text": "Staff Engineer • Acme, London",
-                             "dates": "Jan 2020 - Present"}
-        assert blocks[8]["dates"] == "2015 - 2019"
+        assert blocks[6] == {"kind": "entry", "text": "Staff Engineer • Acme, London | Jan 2020 - Present"}
+        assert blocks[8] == {"kind": "entry", "text": "Engineer • Beta Ltd (2015 - 2019)"}
         assert blocks[9]["items"] == ["Shipped things", "Fixed things"]
-        assert blocks[11]["dates"] is None
+        assert blocks[11] == {"kind": "entry", "text": "BSc Computer Science • Uni"}
 
     def test_star_bullets_and_crlf(self):
         blocks = cv_export._parse_blocks("* one\r\n* two\r\n\r\ntext")
@@ -87,12 +87,17 @@ class TestParseBlocks:
         assert cv_export._parse_blocks("") == []
 
 
-class TestContactLine:
-    def test_joins_present_fields_in_order(self):
-        assert cv_export._contact_line(profile()) == "London  |  +44 1234  |  jane@example.com  |  gh/jane"
+class TestContactParts:
+    def test_present_fields_in_display_order_with_links(self):
+        assert cv_export._contact_parts(profile()) == [
+            ("Email: ", "jane@example.com", "mailto:jane@example.com"),
+            ("Mobile: ", "+44 1234", None),
+            ("", "GitHub", "https://gh/jane"),
+            ("Location: ", "London", None),
+        ]
 
     def test_object_without_attributes(self):
-        assert cv_export._contact_line(object()) == ""
+        assert cv_export._contact_parts(object()) == []
 
 
 class TestBuildDocx:
@@ -105,20 +110,20 @@ class TestBuildDocx:
         assert data[:2] == b"PK"  # zip container
         texts = [p.text for p in self._read(data).paragraphs]
         assert texts[0] == "Jane Doe"
-        assert texts[1] == "Staff Engineer"
-        assert "jane@example.com" in texts[2]
+        assert texts[1] == "Email: jane@example.com | Mobile: +44 1234 | GitHub | Location: London"
         # duplicate "# Jane Doe" h1 from the AI body is dropped
         assert texts.count("Jane Doe") == 1
         assert "PROFESSIONAL SUMMARY" in texts
-        assert "Staff Engineer • Acme, London\tJan 2020 - Present" in texts
+        assert "Staff Engineer • Acme, London | Jan 2020 - Present" in texts
         assert "Languages: Python, Go" in texts
 
-    def test_bold_runs_and_right_tab(self):
+    def test_bold_runs_and_single_bold_entry_line(self):
         doc = self._read(cv_export.build_docx(profile(), SAMPLE_CV))
         bullet = next(p for p in doc.paragraphs if p.text == "Languages: Python, Go")
         assert [(r.text, bool(r.bold)) for r in bullet.runs] == [("Languages:", True), (" Python, Go", False)]
         entry = next(p for p in doc.paragraphs if p.text.startswith("Staff Engineer • Acme"))
-        assert len(entry.paragraph_format.tab_stops) == 1
+        assert entry.runs and all(r.bold for r in entry.runs)
+        assert len(entry.paragraph_format.tab_stops) == 0
 
     def test_missing_profile_fields_fall_back(self):
         doc = self._read(cv_export.build_docx(SimpleNamespace(), "Just a paragraph"))
