@@ -1,9 +1,21 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { X, Sparkles, Link2, Pencil } from "lucide-react";
 import { api, ApiError, type JobDetail } from "@/lib/api";
 
 const INDEED_RE = /^https?:\/\/([^/]*\.)?indeed\.[a-z.]+\//i;
+const CVLIBRARY_RE = /^https?:\/\/(www\.)?cv-library\.co\.uk\//i;
+
+/** Job boards with their own import route: dedup by job id, paste-text fallback. */
+const BOARDS = {
+  indeed: { name: "Indeed", re: INDEED_RE, create: api.createFromIndeed },
+  cvlibrary: { name: "CV-Library", re: CVLIBRARY_RE, create: api.importFromCVLibrary },
+};
+
+function boardFor(url: string) {
+  return Object.values(BOARDS).find((b) => b.re.test(url)) ?? null;
+}
 
 interface Props {
   onClose: () => void;
@@ -18,23 +30,26 @@ export function AddFromUrlModal({ onClose, onCreated, onSwitchToManual }: Props)
   const [error, setError] = useState<string | null>(null);
   const [pasteText, setPasteText] = useState("");
   const [needsPaste, setNeedsPaste] = useState(false);
-  const isIndeed = INDEED_RE.test(url.trim());
+  const [existingJobId, setExistingJobId] = useState<number | null>(null);
+  const board = boardFor(url.trim());
 
   async function submit() {
     if (!url) return;
     setBusy(true);
     setError(null);
+    setExistingJobId(null);
     try {
-      const job = isIndeed
-        ? await api.createFromIndeed(url.trim(), pasteText)
+      const job = board
+        ? await board.create(url.trim(), pasteText)
         : await api.createFromUrl(url.trim());
       onCreated(job);
     } catch (e: any) {
-      if (e instanceof ApiError && isIndeed && e.status === 422) {
+      if (e instanceof ApiError && board && e.status === 422) {
         setNeedsPaste(true);
-        setError(typeof e.detail === "string" ? e.detail : "Indeed blocked automated access.");
+        setError(typeof e.detail === "string" ? e.detail : `${board.name} blocked automated access.`);
       } else if (e instanceof ApiError && e.status === 409) {
-        setError("You already imported this job.");
+        setError("Already imported.");
+        setExistingJobId(typeof e.detail?.job_id === "number" ? e.detail.job_id : null);
       } else if (e instanceof ApiError && typeof e.detail === "string") {
         setError(e.detail);
       } else {
@@ -72,22 +87,30 @@ export function AddFromUrlModal({ onClose, onCreated, onSwitchToManual }: Props)
               onKeyDown={(e) => e.key === "Enter" && submit()}
             />
           </div>
-          {isIndeed && needsPaste && (
+          {board && needsPaste && (
             <textarea
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
               rows={8}
-              placeholder="Open the Indeed posting in your browser, select all, copy, and paste the text here"
+              placeholder={`Open the ${board.name} posting in your browser, select all, copy, and paste the text here`}
               className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-3 py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/40"
             />
           )}
           {error && (
             <div className="p-3 rounded-md bg-red-500/10 border border-red-500/20 text-xs text-red-300">
               {error}
+              {existingJobId !== null && (
+                <>
+                  {" "}
+                  <Link href={`/applications?job=${existingJobId}`} onClick={onClose} className="underline hover:text-red-200">
+                    Open the existing job
+                  </Link>
+                </>
+              )}
             </div>
           )}
           <div className="text-[11px] text-zinc-600">
-            Indeed links are imported by job id; if Indeed blocks the server you can paste the posting text instead. LinkedIn also often blocks scrapers. Greenhouse, Lever, Ashby, and direct company career pages work best.
+            Indeed and CV-Library links are imported by job id; if the site blocks the server you can paste the posting text instead. LinkedIn also often blocks scrapers. Greenhouse, Lever, Ashby, and direct company career pages work best.
           </div>
         </div>
         <div className="flex justify-between gap-2 p-5 border-t border-zinc-800">

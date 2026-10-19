@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from sqlalchemy.exc import IntegrityError
 
-from . import models, schemas, ai, scraper, auth, indeed
+from . import models, schemas, ai, scraper, auth, indeed, cvlibrary
 from .ratelimit import LoginLimiter
 from .config import settings
 from .db import get_db, init_db
@@ -204,16 +204,44 @@ async def create_from_indeed(
         job_key, canonical_url = indeed.parse_indeed_url(payload.url)
     except indeed.NotIndeedURLError as e:
         raise HTTPException(400, str(e))
+    return await _import_board_job(
+        db, "Indeed", indeed.SOURCE, job_key, canonical_url, payload.page_text
+    )
 
+
+@app.post("/jobs/from-cvlibrary", response_model=schemas.JobDetail, status_code=201)
+async def create_from_cvlibrary(
+    payload: schemas.JobFromCVLibrary,
+    db: Session = Depends(get_db),
+    _: str = Depends(auth.require_write),
+):
+    try:
+        job_id, canonical_url = cvlibrary.parse_cvlibrary_url(payload.url)
+    except cvlibrary.NotCVLibraryURLError as e:
+        raise HTTPException(400, str(e))
+    return await _import_board_job(
+        db, "CV-Library", cvlibrary.SOURCE, job_id, canonical_url, payload.page_text
+    )
+
+
+async def _import_board_job(
+    db: Session,
+    platform: str,
+    source: str,
+    external_id: str,
+    canonical_url: str,
+    page_text: str | None,
+) -> models.Job:
+    """Create a Job from a job-board posting: dedup, fetch or use pasted text, AI extract."""
     existing = (
         db.query(models.Job)
-        .filter(models.Job.source == indeed.SOURCE, models.Job.external_id == job_key)
+        .filter(models.Job.source == source, models.Job.external_id == external_id)
         .first()
     )
     if existing:
         raise HTTPException(409, {"message": "Already imported", "job_id": existing.id})
 
-    page_text = (payload.page_text or "").strip()
+    page_text = (page_text or "").strip()
     if not page_text:
         try:
             page_text = await scraper.fetch_page(canonical_url)
@@ -222,7 +250,7 @@ async def create_from_indeed(
         if not page_text or indeed.looks_like_challenge(page_text):
             raise HTTPException(
                 422,
-                "Indeed blocked automated access. Open the posting in your browser, "
+                f"{platform} blocked automated access. Open the posting in your browser, "
                 "copy the page text, and paste it in.",
             )
 
@@ -232,9 +260,9 @@ async def create_from_indeed(
         role=extracted.get("role") or "Unknown",
         location=extracted.get("location"),
         work_type=extracted.get("work_type"),
-        platform="Indeed",
-        source=indeed.SOURCE,
-        external_id=job_key,
+        platform=platform,
+        source=source,
+        external_id=external_id,
         source_url=canonical_url,
         description=extracted.get("description"),
         salary_min=extracted.get("salary_min"),

@@ -29,6 +29,8 @@ Legend: 🌐 public · 👁 `require_read` (open in demo mode) · ✏️ `requir
 | GET | `/jobs/{id}` | 👁 | → `JobDetail` |
 | POST | `/jobs` | ✏️ | `JobCreate` → `JobDetail` (201) |
 | POST | `/jobs/from-url` | ✏️ | `{url}` → `JobDetail` (201); scrape + Claude extraction |
+| POST | `/jobs/from-indeed` | ✏️ | `{url, page_text?}` → `JobDetail` (201); 400 not an Indeed URL, 409 `{message, job_id}` already imported, 422 blocked (paste `page_text`) |
+| POST | `/jobs/from-cvlibrary` | ✏️ | `{url, page_text?}` → `JobDetail` (201); same rules as `/jobs/from-indeed`, keyed by the CV-Library job id |
 | PATCH | `/jobs/{id}` | ✏️ | `JobUpdate` (partial) → `JobDetail` |
 | DELETE | `/jobs/{id}` | ✏️ | → 204 |
 

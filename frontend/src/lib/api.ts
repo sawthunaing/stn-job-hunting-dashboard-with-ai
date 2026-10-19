@@ -206,6 +206,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ url, page_text: page_text || null }),
     }),
+  importFromCVLibrary: (url: string, page_text?: string) =>
+    req<JobDetail>("/jobs/from-cvlibrary", {
+      method: "POST",
+      body: JSON.stringify({ url, page_text: page_text || null }),
+    }),
   update: (id: number, patch: Partial<JobDetail>) =>
     req<JobDetail>(`/jobs/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   delete: (id: number) => req<void>(`/jobs/${id}`, { method: "DELETE" }),
