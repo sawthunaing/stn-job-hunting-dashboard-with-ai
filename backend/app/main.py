@@ -1,5 +1,5 @@
 """FastAPI application."""
-from datetime import datetime
+from datetime import date, datetime, time
 from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -123,6 +123,8 @@ def upsert_profile(
 def list_jobs(
     status_filter: str | None = None,
     q: str | None = None,
+    applied_from: str | None = None,
+    applied_to: str | None = None,
     db: Session = Depends(get_db),
     _: str = Depends(auth.require_read),
 ):
@@ -134,7 +136,21 @@ def list_jobs(
         query = query.filter(
             (models.Job.company.ilike(like)) | (models.Job.role.ilike(like))
         )
+    if applied_from or applied_to:
+        query = query.filter(models.Job.applied_date.isnot(None))
+    if applied_from:
+        query = query.filter(models.Job.applied_date >= _parse_bound_date(applied_from))
+    if applied_to:
+        end_of_day = datetime.combine(_parse_bound_date(applied_to), time.max)
+        query = query.filter(models.Job.applied_date <= end_of_day)
     return query.order_by(desc(models.Job.created_at)).all()
+
+
+def _parse_bound_date(value: str) -> date:
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        raise HTTPException(400, "validation_failed")
 
 
 @app.get("/jobs/{job_id}", response_model=schemas.JobDetail)

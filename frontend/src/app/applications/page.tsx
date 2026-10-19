@@ -47,10 +47,12 @@ function PageInner() {
   // AI score filter
   const [minScore, setMinScore] = useState(0);
   const [includeUnscored, setIncludeUnscored] = useState(true);
+  const [appliedFrom, setAppliedFrom] = useState("");
+  const [appliedTo, setAppliedTo] = useState("");
 
   const refreshList = useCallback(async () => {
     try {
-      const list = await api.list({ status: statusFilter, q: search });
+      const list = await api.list({ status: statusFilter, q: search, appliedFrom, appliedTo });
       setJobs(list);
       if (list.length > 0 && (selectedId == null || !list.find((j) => j.id === selectedId))) {
         setSelectedId(list[0].id);
@@ -63,7 +65,7 @@ function PageInner() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, search, selectedId]);
+  }, [statusFilter, search, appliedFrom, appliedTo, selectedId]);
 
   useEffect(() => { refreshList(); }, [refreshList]);
 
@@ -222,6 +224,10 @@ function PageInner() {
           onMinScoreChange={setMinScore}
           includeUnscored={includeUnscored}
           onIncludeUnscoredChange={setIncludeUnscored}
+          appliedFrom={appliedFrom}
+          onAppliedFromChange={setAppliedFrom}
+          appliedTo={appliedTo}
+          onAppliedToChange={setAppliedTo}
           hideAdd={isDemo}
         />
 

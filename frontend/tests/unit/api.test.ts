@@ -92,6 +92,11 @@ describe("api endpoints", () => {
     [{ status: "Applied" }, "/jobs?status_filter=Applied"],
     [{ q: "acme corp" }, "/jobs?q=acme+corp"],
     [{ status: "Offer", q: "x" }, "/jobs?status_filter=Offer&q=x"],
+    [{ appliedFrom: "2026-10-01" }, "/jobs?applied_from=2026-10-01"],
+    [{ appliedTo: "2026-10-15" }, "/jobs?applied_to=2026-10-15"],
+    [{ appliedFrom: "2026-10-01", appliedTo: "2026-10-15" },
+     "/jobs?applied_from=2026-10-01&applied_to=2026-10-15"],
+    [{ appliedFrom: "" }, "/jobs"],
   ])("list(%j) -> %s", async (params, path) => {
     const fetch = mockFetch(jsonResponse([]));
     await api.list(params);
