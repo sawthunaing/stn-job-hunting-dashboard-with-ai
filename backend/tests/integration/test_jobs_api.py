@@ -140,5 +140,5 @@ class TestCreateFromUrl:
         monkeypatch.setattr(scraper, "fetch_page", boom)
         r = client.post("/jobs/from-url", json={"url": "https://linkedin.com/jobs/1"}, headers=auth_headers)
         assert r.status_code == 400
-        assert "fetch failed" in r.json()["detail"]
+        assert r.json()["detail"] == "Could not fetch that URL"
         assert client.get("/jobs", headers=auth_headers).json() == []

@@ -1,27 +1,30 @@
 from app import ratelimit
+from app.config import settings
 from app.main import login_limiter
+
+PASSWORD = settings.admin_password
 
 
 def _login(client, password):
-    return client.post("/auth/login", json={"username": "admin", "password": password})
+    return client.post("/auth/login", json={"username": settings.admin_username, "password": password})
 
 
 def test_blocks_after_repeated_failures_then_success_resets(client):
     login_limiter.reset("testclient")
     for _ in range(login_limiter.max_failures):
         assert _login(client, "wrong").status_code == 401
-    blocked = _login(client, "test-password")
+    blocked = _login(client, PASSWORD)
     assert blocked.status_code == 429
     assert int(blocked.headers["retry-after"]) > 0
     login_limiter.reset("testclient")
-    assert _login(client, "test-password").status_code == 200
+    assert _login(client, PASSWORD).status_code == 200
 
 
 def test_success_clears_ip_counter(client):
     login_limiter.reset("testclient")
     for _ in range(login_limiter.max_failures - 1):
         _login(client, "wrong")
-    assert _login(client, "test-password").status_code == 200
+    assert _login(client, PASSWORD).status_code == 200
     for _ in range(login_limiter.max_failures):
         assert _login(client, "wrong").status_code == 401
     login_limiter.reset("testclient")
