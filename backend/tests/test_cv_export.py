@@ -37,6 +37,11 @@ def test_legacy_at_at_separator_becomes_pipe():
 def test_docx_has_clickable_contact_links_and_sections():
     doc = Document(io.BytesIO(cv_export.build_docx(PROFILE, MD)))
     texts = [p.text for p in doc.paragraphs]
+    # Summary/Skills now render inside the two-column region's table cells.
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                texts.extend(p.text for p in cell.paragraphs)
     assert texts[0] == "Jane Doe"
     assert "SUMMARY" in texts and "WORK EXPERIENCE" in texts
     with zipfile.ZipFile(io.BytesIO(cv_export.build_docx(PROFILE, MD))) as z:

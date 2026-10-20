@@ -110,11 +110,13 @@ class TestBuildDocx:
         assert data[:2] == b"PK"  # zip container
         texts = [p.text for p in self._read(data).paragraphs]
         assert texts[0] == "Jane Doe"
-        assert texts[1] == "Email: jane@example.com | Mobile: +44 1234 | GitHub | Location: London"
+        assert texts[1] == "Staff Engineer"  # headline, accent-coloured
+        assert texts[2] == "Email: jane@example.com | Mobile: +44 1234 | GitHub | Location: London"
         # duplicate "# Jane Doe" h1 from the AI body is dropped
         assert texts.count("Jane Doe") == 1
         assert "PROFESSIONAL SUMMARY" in texts
-        assert "Staff Engineer • Acme, London | Jan 2020 - Present" in texts
+        # the entry's " | " parts render as separate title/meta lines, not one string
+        assert "Staff Engineer • Acme, London" in texts and "Jan 2020 - Present" in texts
         assert "Languages: Python, Go" in texts
 
     def test_bold_runs_and_single_bold_entry_line(self):
