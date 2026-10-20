@@ -89,7 +89,7 @@ export function JobFormModal({ onClose, onSaved, editing }: Props) {
       onClick={onClose}
     >
       <div
-        className="w-full md:max-w-2xl bg-zinc-900 md:border border-zinc-800 md:rounded-xl shadow-2xl h-screen md:h-auto md:max-h-[90vh] flex flex-col"
+        className="w-full md:max-w-2xl bg-zinc-900 md:border border-zinc-800 md:rounded-xl shadow-2xl h-dvh md:h-auto md:max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-5 border-b border-zinc-800 shrink-0">
