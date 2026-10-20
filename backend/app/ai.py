@@ -63,6 +63,8 @@ def render_profile(p: models.Profile | None, include_private: bool = True) -> st
         parts.append("\n## Summary\n" + p.summary)
     if p.experience:
         parts.append("\n## Experience\n" + p.experience)
+    if p.projects:
+        parts.append("\n## Projects\n" + p.projects)
     if p.skills:
         parts.append("\n## Skills\n" + p.skills)
     if p.education:
@@ -237,13 +239,17 @@ def tailor_doc(db: Session, description: str, role: str, company: str, doc_type:
             "### <Job Title> | <Company> | <Start - End> | <City, Country (Remote if applicable)>\n"
             "- <achievement bullet, reordered and re-emphasised for THIS job's priorities>\n"
             "<include the 3-4 most relevant roles, most recent first; 2-4 bullets each>\n\n"
+            "## Projects\n"
+            "### <Project Name> | <Tech stack or role> | <Start - End (optional)>\n"
+            "- <bullet: what it does and the result, reordered for THIS job's priorities>\n"
+            "<include the 1-3 most relevant projects from the profile>\n\n"
             "## Skills, Languages, Professional Memberships, & Certificates\n"
             "**Certifications:** <comma-separated certifications from the profile>\n"
             "**Skills:** <comma-separated skills, most JD-relevant first>\n"
             "**Languages:** <languages from the profile>\n\n"
             "CRITICAL FORMATTING RULES:\n"
-            "1. Every Education and Work Experience heading is a single '### ' line with the parts "
-            "separated by ' | ' (space, pipe, space). Do not use '@@' or '•' separators.\n"
+            "1. Every Education, Work Experience and Projects heading is a single '### ' line with "
+            "the parts separated by ' | ' (space, pipe, space). Do not use '@@' or '•' separators.\n"
             "2. Label rows in the last section are single lines of the form '**Label:** value' with no "
             "bullet marker.\n"
             "3. Do NOT output a name or contact header - that is added separately.\n"

@@ -124,6 +124,7 @@ class ProfileSchema(BaseModel):
     experience: Optional[str] = None
     skills: Optional[str] = None
     education: Optional[str] = None
+    projects: Optional[str] = None
     achievements: Optional[str] = None
 
     target_roles: Optional[str] = None

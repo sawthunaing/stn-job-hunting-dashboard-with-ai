@@ -192,7 +192,7 @@ def build_docx(profile, content_md: str) -> bytes:
             r.font.size = Pt(size)
             r.font.color.rgb = BLACK
 
-    def spacing(p, before=0, after=2, line=1.1):
+    def spacing(p, before=0, after=4, line=1.35):
         p.paragraph_format.space_before = Pt(before)
         p.paragraph_format.space_after = Pt(after)
         p.paragraph_format.line_spacing = line
@@ -224,19 +224,19 @@ def build_docx(profile, content_md: str) -> bytes:
             add_runs(p, b["text"].upper(), bold=True, size=HEADING_PT)
             _docx_bottom_border(p)
             p.paragraph_format.keep_with_next = True
-            spacing(p, 7, 4, 1.0)
+            spacing(p, 14, 6, 1.0)
         elif kind == "entry":
             p = doc.add_paragraph()
             add_runs(p, b["text"], bold=True, size=ENTRY_PT)
             p.paragraph_format.keep_with_next = True
-            spacing(p, 6, 3)
+            spacing(p, 10, 6)
         elif kind == "bullets":
             for it in b["items"]:
                 p = doc.add_paragraph(style="List Bullet")
                 p.paragraph_format.left_indent = Inches(BULLET_TEXT_IN)
                 p.paragraph_format.first_line_indent = Inches(-(BULLET_TEXT_IN - BULLET_INDENT_IN))
                 add_runs(p, it)
-                spacing(p, 0, 2)
+                spacing(p, 0, 5)
         elif kind == "kvs":
             col = max(len(label) for label, _ in b["items"]) * 5.6 + 8
             for label, value in b["items"]:
@@ -247,11 +247,11 @@ def build_docx(profile, content_md: str) -> bytes:
                 add_runs(p, label, bold=True)
                 p.add_run("\t")
                 add_runs(p, value)
-                spacing(p, 0, 2)
+                spacing(p, 0, 5)
         else:
             p = doc.add_paragraph()
             add_runs(p, b["text"])
-            spacing(p, 0, 4)
+            spacing(p, 0, 6)
 
     buf = io.BytesIO(); doc.save(buf); return buf.getvalue()
 
@@ -293,9 +293,9 @@ def _typst_source(profile, content_md: str) -> str:
         f'#set page(paper: "a4", margin: (left: {MARGIN_SIDE_IN}in, right: {MARGIN_SIDE_IN}in, '
         f"top: {MARGIN_TOP_IN}in, bottom: {MARGIN_BOTTOM_IN}in))",
         f'#set text(font: "{TYPST_FONT_FAMILY}", size: {BODY_PT}pt)',
-        "#set par(justify: false, leading: 0.5em, spacing: 0pt)",
+        "#set par(justify: false, leading: 0.95em, spacing: 0pt)",
         f"#set list(marker: [•], indent: {BULLET_INDENT_IN}in, "
-        f"body-indent: {BULLET_TEXT_IN - BULLET_INDENT_IN}in, spacing: 0.4em)",
+        f"body-indent: {BULLET_TEXT_IN - BULLET_INDENT_IN}in, spacing: 0.7em)",
         "",
         f'#align(center)[#text(size: {NAME_PT}pt, weight: "bold")[{_typst_escape(name)}]]',
     ]
@@ -309,18 +309,18 @@ def _typst_source(profile, content_md: str) -> str:
     for b in blocks:
         kind = b["kind"]
         if kind in ("h1", "h2"):
-            lines.append("#v(7pt)")
+            lines.append("#v(14pt)")
             lines.append(f'#text(size: {HEADING_PT}pt, weight: "bold")[{_typst_escape(b["text"].upper())}]')
-            lines.append("#v(1pt)")
+            lines.append("#v(2pt)")
             lines.append("#rect(width: 100%, height: 0.75pt, fill: black, stroke: none, inset: 0pt)")
-            lines.append("#v(3pt, weak: true)")
+            lines.append("#v(6pt, weak: true)")
         elif kind == "entry":
-            lines.append("#v(6pt)")
+            lines.append("#v(10pt)")
             lines.append(f'#text(size: {ENTRY_PT}pt, weight: "bold")[{_typ(b["text"])}]')
-            lines.append("#v(3pt, weak: true)")
+            lines.append("#v(6pt, weak: true)")
         elif kind == "bullets":
             lines.extend(f"- {_typ(it)}" for it in b["items"])
-            lines.append("#v(2pt, weak: true)")
+            lines.append("#v(6pt, weak: true)")
         elif kind == "kvs":
             cells = []
             for label, value in b["items"]:
@@ -328,15 +328,15 @@ def _typst_source(profile, content_md: str) -> str:
                 cells.append(f"[{_typ(value)}]")
             table_src = (
                 "#table(columns: (auto, 1fr), stroke: none, inset: 0pt, "
-                "column-gutter: 8pt, row-gutter: 2pt,\n  "
+                "column-gutter: 8pt, row-gutter: 5pt,\n  "
                 + ",\n  ".join(cells)
                 + ",\n)"
             )
             lines.append(table_src)
-            lines.append("#v(2pt, weak: true)")
+            lines.append("#v(6pt, weak: true)")
         else:
             lines.append(f"#text(size: {BODY_PT}pt)[{_typ(b['text'])}]")
-            lines.append("#v(4pt, weak: true)")
+            lines.append("#v(8pt, weak: true)")
 
     return "\n".join(lines) + "\n"
 

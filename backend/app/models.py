@@ -70,6 +70,7 @@ class Profile(Base):
     experience: Mapped[Optional[str]] = mapped_column(Text)
     skills: Mapped[Optional[str]] = mapped_column(Text)
     education: Mapped[Optional[str]] = mapped_column(Text)
+    projects: Mapped[Optional[str]] = mapped_column(Text)
     achievements: Mapped[Optional[str]] = mapped_column(Text)
 
     # Private targeting (AI uses but never includes in tailored docs)

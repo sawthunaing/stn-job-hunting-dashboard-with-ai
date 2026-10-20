@@ -162,6 +162,19 @@ function ProfilePageInner() {
           </div>
 
           <div>
+            <label className={labelCls}>Projects (optional)</label>
+            <textarea
+              className={textareaCls}
+              rows={6}
+              value={profile.projects || ""}
+              onChange={(e) => set("projects", e.target.value)}
+              placeholder={`### Side Project · Open-source CLI · 2023
+- Built a Rust CLI with 2k GitHub stars, used by ...
+- ...`}
+            />
+          </div>
+
+          <div>
             <label className={labelCls}>Skills</label>
             <textarea
               className={textareaCls}

@@ -103,6 +103,7 @@ export interface Profile {
   experience?: string | null;
   skills?: string | null;
   education?: string | null;
+  projects?: string | null;
   achievements?: string | null;
   target_roles?: string | null;
   target_salary?: string | null;
