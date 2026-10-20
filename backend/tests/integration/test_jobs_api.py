@@ -104,6 +104,53 @@ class TestList:
         assert [j["status"] for j in r.json()] == ["Rejected"]
 
 
+class TestAppliedDateFilter:
+    @staticmethod
+    def seed(companies_and_dates):
+        with SessionLocal() as db:
+            db.add_all([
+                models.Job(company=company, role="r", applied_date=applied_date)
+                for company, applied_date in companies_and_dates
+            ])
+            db.commit()
+
+    def test_range_excludes_outside_and_unapplied(self, client, auth_headers):
+        self.seed([
+            ("Before", datetime(2026, 9, 30)),
+            ("InRange", datetime(2026, 10, 5)),
+            ("After", datetime(2026, 10, 20)),
+            ("NeverApplied", None),
+        ])
+        r = client.get("/jobs", params={"applied_from": "2026-10-01", "applied_to": "2026-10-15"},
+                       headers=auth_headers)
+        assert [j["company"] for j in r.json()] == ["InRange"]
+
+    def test_only_from_set_excludes_nulls(self, client, auth_headers):
+        self.seed([
+            ("Early", datetime(2026, 9, 1)),
+            ("Late", datetime(2026, 10, 10)),
+            ("NeverApplied", None),
+        ])
+        r = client.get("/jobs", params={"applied_from": "2026-10-01"}, headers=auth_headers)
+        assert [j["company"] for j in r.json()] == ["Late"]
+
+    def test_no_params_keeps_nulls_and_current_behavior(self, client, auth_headers):
+        self.seed([("Applied", datetime(2026, 10, 1)), ("NeverApplied", None)])
+        r = client.get("/jobs", headers=auth_headers)
+        assert sorted(j["company"] for j in r.json()) == ["Applied", "NeverApplied"]
+
+    def test_invalid_date_returns_400(self, client, auth_headers):
+        r = client.get("/jobs", params={"applied_from": "not-a-date"}, headers=auth_headers)
+        assert r.status_code == 400
+        assert r.json()["detail"] == "validation_failed"
+
+    def test_reversed_range_returns_empty(self, client, auth_headers):
+        self.seed([("Applied", datetime(2026, 10, 5))])
+        r = client.get("/jobs", params={"applied_from": "2026-10-15", "applied_to": "2026-10-01"},
+                       headers=auth_headers)
+        assert r.json() == []
+
+
 class TestCreateFromUrl:
     def test_scrapes_extracts_and_saves(self, client, auth_headers, fake_claude, fake_fetch):
         url = "https://boards.greenhouse.io/acme/jobs/42"

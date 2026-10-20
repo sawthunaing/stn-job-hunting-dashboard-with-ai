@@ -9,6 +9,7 @@ export function Sidebar({
   jobs, selectedId, onSelect, search, onSearch, statusFilter, onStatusChange, onAddClick, loading,
   isOpen = true, onClose,
   minScore, onMinScoreChange, includeUnscored, onIncludeUnscoredChange,
+  appliedFrom, onAppliedFromChange, appliedTo, onAppliedToChange,
   hideAdd,
 }: {
   jobs: JobListItem[];
@@ -30,6 +31,11 @@ export function Sidebar({
   /** Whether to include unanalyzed jobs (no score) when minScore > 0. */
   includeUnscored: boolean;
   onIncludeUnscoredChange: (v: boolean) => void;
+  /** Applied-date range filter (ISO "YYYY-MM-DD"), empty string = no bound. */
+  appliedFrom: string;
+  onAppliedFromChange: (v: string) => void;
+  appliedTo: string;
+  onAppliedToChange: (v: string) => void;
   /** Hide the "+ Add" button (used in demo mode). */
   hideAdd?: boolean;
 }) {
@@ -127,6 +133,34 @@ export function Sidebar({
                 {s}
               </button>
             ))}
+          </div>
+
+          {/* Applied-date range filter */}
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={appliedFrom}
+              onChange={(e) => onAppliedFromChange(e.target.value)}
+              aria-label="Applied from"
+              className="flex-1 min-w-0 bg-zinc-900/60 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-zinc-700"
+            />
+            <span className="text-zinc-600 text-xs">to</span>
+            <input
+              type="date"
+              value={appliedTo}
+              onChange={(e) => onAppliedToChange(e.target.value)}
+              aria-label="Applied to"
+              className="flex-1 min-w-0 bg-zinc-900/60 border border-zinc-800 rounded-md px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-zinc-700"
+            />
+            {(appliedFrom || appliedTo) && (
+              <button
+                onClick={() => { onAppliedFromChange(""); onAppliedToChange(""); }}
+                aria-label="Clear applied-date filter"
+                className="text-zinc-500 hover:text-zinc-300 shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           {/* AI score distribution histogram + slider */}

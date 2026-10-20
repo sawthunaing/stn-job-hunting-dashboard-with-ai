@@ -189,10 +189,12 @@ export const api = {
   saveProfile: (p: Profile) => req<Profile>("/profile", { method: "PUT", body: JSON.stringify(p) }),
 
   // --- Jobs ---
-  list: (params?: { status?: string; q?: string }) => {
+  list: (params?: { status?: string; q?: string; appliedFrom?: string; appliedTo?: string }) => {
     const qs = new URLSearchParams();
     if (params?.status && params.status !== "All") qs.set("status_filter", params.status);
     if (params?.q) qs.set("q", params.q);
+    if (params?.appliedFrom) qs.set("applied_from", params.appliedFrom);
+    if (params?.appliedTo) qs.set("applied_to", params.appliedTo);
     const s = qs.toString();
     return req<JobListItem[]>(`/jobs${s ? "?" + s : ""}`);
   },
