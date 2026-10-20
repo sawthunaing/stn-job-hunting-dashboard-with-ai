@@ -12,7 +12,7 @@ FastAPI  :8000 ──► PostgreSQL 16 :5432
    │
    ├─► scraper.fetch_page(url)   httpx + BeautifulSoup → plain text
    ├─► ai.*                      Anthropic Messages API → JSON dicts
-   └─► cv_export.build_docx/pdf  python-docx / reportlab
+   └─► cv_export.build_docx/pdf  python-docx / Typst (typst CLI)
 ```
 
 All three containers run on one host (local Docker or a single EC2 `t4g.small`).

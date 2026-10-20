@@ -63,6 +63,8 @@ def render_profile(p: models.Profile | None, include_private: bool = True) -> st
         parts.append("\n## Summary\n" + p.summary)
     if p.experience:
         parts.append("\n## Experience\n" + p.experience)
+    if p.projects:
+        parts.append("\n## Projects\n" + p.projects)
     if p.skills:
         parts.append("\n## Skills\n" + p.skills)
     if p.education:
@@ -230,27 +232,42 @@ def tailor_doc(db: Session, description: str, role: str, company: str, doc_type:
             "## Summary\n"
             "<one paragraph of 3-4 sentences tailored to THIS job, drawing only on the candidate's real "
             "background. Use **bold** for the opening role phrase and a few key technologies/competencies>\n\n"
+            "## Skills\n"
+            "**<Category>:** <comma-separated skills in that category, most JD-relevant first>\n"
+            "<one line per category the profile's skills/languages naturally fall into (e.g. Languages & "
+            "Frameworks, Databases, Cloud & DevOps, Architecture & Domain, Ways of Working). Keep the "
+            "candidate's real groupings; do not invent skills they don't have>\n\n"
             "## Education\n"
             "### <Degree> | <Institution> | <City, Country> | <Start - End>\n"
             "- <optional detail bullet: module, certification or major from the profile>\n\n"
+            "## Certifications\n"
+            "- <Certification name> — <Issuer>\n"
+            "<one bullet per certification from the profile>\n\n"
             "## Work Experience\n"
             "### <Job Title> | <Company> | <Start - End> | <City, Country (Remote if applicable)>\n"
             "- <achievement bullet, reordered and re-emphasised for THIS job's priorities>\n"
             "<include the 3-4 most relevant roles, most recent first; 2-4 bullets each>\n\n"
-            "## Skills, Languages, Professional Memberships, & Certificates\n"
-            "**Certifications:** <comma-separated certifications from the profile>\n"
-            "**Skills:** <comma-separated skills, most JD-relevant first>\n"
-            "**Languages:** <languages from the profile>\n\n"
+            "## Projects\n"
+            "### <Project Name> | <Tech stack or role> | <Start - End (optional)>\n"
+            "- <bullet: what it does and the result, reordered for THIS job's priorities>\n"
+            "<include the 1-3 most relevant projects from the profile>\n\n"
+            "## Key Achievements\n"
+            "### <short stat, e.g. '~40%' or '1st'> — <short title>\n"
+            "<one sentence of context for that stat, consistent with the Work Experience section above>\n"
+            "<include the 3-4 strongest quantified wins already present elsewhere in the profile; omit "
+            "this whole section if the profile has no quantified results>\n\n"
             "CRITICAL FORMATTING RULES:\n"
-            "1. Every Education and Work Experience heading is a single '### ' line with the parts "
-            "separated by ' | ' (space, pipe, space). Do not use '@@' or '•' separators.\n"
-            "2. Label rows in the last section are single lines of the form '**Label:** value' with no "
-            "bullet marker.\n"
+            "1. Every Education, Work Experience, Projects and Key Achievements heading is a single "
+            "'### ' line. Education/Work Experience/Projects parts are separated by ' | ' (space, pipe, "
+            "space); Key Achievements is '<stat> — <title>'. Do not use '@@' or '•' separators.\n"
+            "2. The Skills section is one or more lines of the form '**Category:** value' with no bullet "
+            "marker, one per category. Certifications is a '- ' bullet list, one per certification - never "
+            "a '**Label:** value' line.\n"
             "3. Do NOT output a name or contact header - that is added separately.\n"
-            "4. Omit any section or label row the profile has no data for.\n"
-            "5. Pull every role, date, certification and award from the candidate profile. "
-            "Never invent experience, dates, employers, or achievements. You may rephrase and "
-            "reorder bullets to match the JD, but the underlying facts must come from the profile."
+            "4. Omit any section, label row or bullet the profile has no data for.\n"
+            "5. Pull every role, date, certification, project and achievement from the candidate profile. "
+            "Never invent experience, dates, employers, or stats. You may rephrase and reorder bullets to "
+            "match the JD, but the underlying facts must come from the profile."
         ),
         "cover_letter": "Generate a focused cover letter (under 250 words). Open with something specific to the company.",
         "recruiter_email": "Generate a short outreach email (under 150 words). Include subject line.",
