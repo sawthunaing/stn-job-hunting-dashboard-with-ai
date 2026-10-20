@@ -38,8 +38,6 @@ When an item is done, tick it and move it to **Done** with the date and PR link.
 
 ## 📋 Next (P2)
 
-- [ ] **B-006 · P2 · S: CI workflow**: GitHub Actions running backend compile + pytest and
-      frontend lint, `tsc --noEmit`, and build on every PR.
 - [ ] **B-007 · P2 · S: Remove `backend/app.broken/`** once B-001 is confirmed working (it is a pre-migration snapshot).
 - [ ] **B-008 · P2 · S: Remove legacy `openai_*` settings** from `config.py` after confirming no deployed `config.json` relies on them
       (Pydantic ignores unknown keys by default, so removal is safe).
@@ -73,3 +71,5 @@ When an item is done, tick it and move it to **Done** with the date and PR link.
 ## ✅ Done
 
 <!-- - [x] **B-000 · …** (YYYY-MM-DD, PR link) -->
+- [x] **B-006 · P2 · S: CI workflow**: GitHub Actions running backend compile + pytest and
+      frontend lint, `tsc --noEmit`, and build on every PR. (2026-10-20, S-41 [PR #14](https://github.com/sawthunaing/stn-job-hunting-dashboard-with-ai/pull/14), S-42 [PR #15](https://github.com/sawthunaing/stn-job-hunting-dashboard-with-ai/pull/15))
