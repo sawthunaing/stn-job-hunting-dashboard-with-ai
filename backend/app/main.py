@@ -25,6 +25,7 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 
@@ -416,10 +417,14 @@ def download_cv(
         raise HTTPException(400, "No tailored CV has been generated for this job yet")
 
     profile = db.get(models.Profile, 1)
-    safe_company = "".join(
-        c for c in (job.company or "") if c.isascii() and (c.isalnum() or c in " -_")
-    ).strip().replace(" ", "_") or "company"
-    filename = f"CV_{safe_company}.{fmt}"
+
+    def _slug(value: str, fallback: str) -> str:
+        safe = "".join(c for c in (value or "") if c.isascii() and (c.isalnum() or c in " -_"))
+        return safe.strip().replace(" ", "_") or fallback
+
+    safe_company = _slug(job.company, "company")
+    safe_role = _slug(job.role, "role")
+    filename = f"stn-{safe_company}-{safe_role}.{fmt}"
 
     if fmt == "docx":
         data = cv_export.build_docx(profile, cv["content"])

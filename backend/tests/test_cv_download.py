@@ -12,9 +12,11 @@ def _job_with_cv(content="## Professional Summary\nBuilder of things.\n\n## Prof
 
 def test_download_pdf_and_docx(client):
     jid = _job_with_cv()
-    pdf = client.get(f"/jobs/{jid}/cv?format=pdf")
+    pdf = client.get(f"/jobs/{jid}/cv?format=pdf", headers={"Origin": "http://localhost:3000"})
     assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
-    assert 'filename="CV_Acme_Ltd.pdf"' in pdf.headers["content-disposition"]
+    assert 'filename="stn-Acme_Ltd-Engineer.pdf"' in pdf.headers["content-disposition"]
+    # the browser only lets frontend JS read Content-Disposition if CORS exposes it
+    assert "content-disposition" in pdf.headers["access-control-expose-headers"].lower()
     docx = client.get(f"/jobs/{jid}/cv?format=docx")
     assert docx.status_code == 200 and docx.content.startswith(b"PK")
 
