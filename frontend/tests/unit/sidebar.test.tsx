@@ -22,6 +22,8 @@ function setup(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     onAppliedFromChange: vi.fn(),
     appliedTo: "",
     onAppliedToChange: vi.fn(),
+    sortBy: "created_at_desc" as const,
+    onSortByChange: vi.fn(),
     ...overrides,
   };
   render(<Sidebar {...props} />);
@@ -53,5 +55,23 @@ describe("Sidebar applied-date filter", () => {
     await userEvent.click(screen.getByLabelText("Clear applied-date filter"));
     expect(onAppliedFromChange).toHaveBeenCalledWith("");
     expect(onAppliedToChange).toHaveBeenCalledWith("");
+  });
+});
+
+describe("Sidebar sort-by control", () => {
+  it("defaults to Date added", () => {
+    setup();
+    expect(screen.getByLabelText("Sort by")).toHaveValue("created_at_desc");
+  });
+
+  it("shows the given sort value selected", () => {
+    setup({ sortBy: "updated_at_desc" });
+    expect(screen.getByLabelText("Sort by")).toHaveValue("updated_at_desc");
+  });
+
+  it("calls onSortByChange when a different option is picked", async () => {
+    const { onSortByChange } = setup();
+    await userEvent.selectOptions(screen.getByLabelText("Sort by"), "updated_at_desc");
+    expect(onSortByChange).toHaveBeenCalledWith("updated_at_desc");
   });
 });

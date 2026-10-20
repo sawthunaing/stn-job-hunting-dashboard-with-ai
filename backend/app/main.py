@@ -119,15 +119,24 @@ def upsert_profile(
 
 # =================== JOBS ===================
 
+SORT_COLUMNS = {
+    "created_at_desc": models.Job.created_at,
+    "updated_at_desc": models.Job.updated_at,
+}
+
+
 @app.get("/jobs", response_model=list[schemas.JobListItem])
 def list_jobs(
     status_filter: str | None = None,
     q: str | None = None,
     applied_from: str | None = None,
     applied_to: str | None = None,
+    sort: str = "created_at_desc",
     db: Session = Depends(get_db),
     _: str = Depends(auth.require_read),
 ):
+    if sort not in SORT_COLUMNS:
+        raise HTTPException(400, "validation_failed")
     query = db.query(models.Job)
     if status_filter and status_filter != "All":
         query = query.filter(models.Job.status == status_filter)
@@ -143,7 +152,7 @@ def list_jobs(
     if applied_to:
         end_of_day = datetime.combine(_parse_bound_date(applied_to), time.max)
         query = query.filter(models.Job.applied_date <= end_of_day)
-    return query.order_by(desc(models.Job.created_at)).all()
+    return query.order_by(desc(SORT_COLUMNS[sort])).all()
 
 
 def _parse_bound_date(value: str) -> date:

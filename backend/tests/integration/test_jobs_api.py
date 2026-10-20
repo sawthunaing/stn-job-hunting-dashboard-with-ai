@@ -151,6 +151,50 @@ class TestAppliedDateFilter:
         assert r.json() == []
 
 
+class TestSort:
+    @staticmethod
+    def seed(companies_created_updated, status=None):
+        with SessionLocal() as db:
+            db.add_all([
+                models.Job(company=company, role="r", created_at=created, updated_at=updated,
+                           status=status or "New")
+                for company, created, updated in companies_created_updated
+            ])
+            db.commit()
+
+    def test_default_sort_is_newest_created_first(self, client, auth_headers):
+        self.seed([
+            ("Old", datetime(2026, 10, 1), datetime(2026, 10, 1)),
+            ("New", datetime(2026, 10, 10), datetime(2026, 10, 2)),
+        ])
+        companies = [j["company"] for j in client.get("/jobs", headers=auth_headers).json()]
+        assert companies == ["New", "Old"]
+
+    def test_updated_at_desc_sorts_by_last_change(self, client, auth_headers):
+        self.seed([
+            ("Old", datetime(2026, 10, 1), datetime(2026, 10, 1)),
+            ("New", datetime(2026, 10, 10), datetime(2026, 10, 2)),
+            ("RecentlyTouched", datetime(2026, 10, 2), datetime(2026, 10, 15)),
+        ])
+        r = client.get("/jobs", params={"sort": "updated_at_desc"}, headers=auth_headers)
+        assert [j["company"] for j in r.json()] == ["RecentlyTouched", "New", "Old"]
+
+    def test_invalid_sort_returns_400(self, client, auth_headers):
+        r = client.get("/jobs", params={"sort": "not-a-real-sort"}, headers=auth_headers)
+        assert r.status_code == 400
+        assert r.json()["detail"] == "validation_failed"
+
+    def test_combines_with_status_filter(self, client, auth_headers):
+        self.seed([
+            ("RejectedOld", datetime(2026, 10, 1), datetime(2026, 10, 1)),
+            ("RejectedNew", datetime(2026, 10, 2), datetime(2026, 10, 15)),
+        ], status="Rejected")
+        self.seed([("StillNew", datetime(2026, 10, 20), datetime(2026, 10, 20))])
+        r = client.get("/jobs", params={"status_filter": "Rejected", "sort": "updated_at_desc"},
+                       headers=auth_headers)
+        assert [j["company"] for j in r.json()] == ["RejectedNew", "RejectedOld"]
+
+
 class TestCreateFromUrl:
     def test_scrapes_extracts_and_saves(self, client, auth_headers, fake_claude, fake_fetch):
         url = "https://boards.greenhouse.io/acme/jobs/42"

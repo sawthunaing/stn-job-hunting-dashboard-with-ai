@@ -189,12 +189,16 @@ export const api = {
   saveProfile: (p: Profile) => req<Profile>("/profile", { method: "PUT", body: JSON.stringify(p) }),
 
   // --- Jobs ---
-  list: (params?: { status?: string; q?: string; appliedFrom?: string; appliedTo?: string }) => {
+  list: (params?: {
+    status?: string; q?: string; appliedFrom?: string; appliedTo?: string;
+    sort?: "created_at_desc" | "updated_at_desc";
+  }) => {
     const qs = new URLSearchParams();
     if (params?.status && params.status !== "All") qs.set("status_filter", params.status);
     if (params?.q) qs.set("q", params.q);
     if (params?.appliedFrom) qs.set("applied_from", params.appliedFrom);
     if (params?.appliedTo) qs.set("applied_to", params.appliedTo);
+    if (params?.sort && params.sort !== "created_at_desc") qs.set("sort", params.sort);
     const s = qs.toString();
     return req<JobListItem[]>(`/jobs${s ? "?" + s : ""}`);
   },
