@@ -11,30 +11,9 @@ When an item is done, tick it and move it to **Done** with the date and PR link.
 
 ## 🔥 Now (P0 / P1)
 
-- [ ] **B-001 · P0 · S: Wire up the tailored-CV download endpoint**
-  - `cv_export` is imported in `backend/app/main.py`, but no route exists. The frontend
-    (`frontend/src/lib/api.ts` → `downloadCV`) calls `GET /jobs/{id}/cv?format=pdf|docx`.
-  - The paste-in snippet `MAIN_PY_ADDITION.py` defines `/jobs/{id}/cv/download`, which is a **path mismatch**.
-    Pick one path (recommend `/jobs/{id}/cv`, so the frontend does not change) and add it to `main.py`.
-  - Then delete `MAIN_PY_ADDITION.py` and `FRONTEND_CV_DOWNLOAD.tsx` from the repo root.
-  - Acceptance: downloading a tailored CV from the Tailored CV tab yields a valid .pdf and .docx.
-
 - [ ] **B-002 · P1 · S: Fix error handling in `downloadCV`**
   - In `api.ts`, the `throw` inside `try { JSON.parse }` is caught by its own `catch`, so
     `detail` from the API is replaced by the raw response text. Parse first, throw outside the try.
-
-- [ ] **B-003 · P1 · S: Update README for the Claude migration**
-  - README still describes OpenAI / GPT-5, model-quirk detection and OpenAI cost tables.
-    Update the stack badge, AI section, cost table, and "How to run" (Anthropic key).
-  - Also fix the stale "OpenAI key" comments in `docker-compose.yml` and `backend/docker-compose.yml`.
-
-- [ ] **B-004 · P1 · M: Add database migrations (Alembic)**
-  - `init_db()` only runs `create_all`, so new columns on existing tables need a manual `ALTER`.
-  - Add Alembic with a baseline revision matching the current `models.py`, and run migrations on startup or deploy.
-
-- [ ] **B-005 · P1 · M: Backend test suite**
-  - Add `pytest` + `httpx` TestClient. Cover auth (login, read/write and demo mode), job CRUD,
-    and AI routes with `ai._call_json` mocked. SQLite or a Postgres test container.
 
 ## 📋 Next (P2)
 
@@ -73,3 +52,7 @@ When an item is done, tick it and move it to **Done** with the date and PR link.
 <!-- - [x] **B-000 · …** (YYYY-MM-DD, PR link) -->
 - [x] **B-006 · P2 · S: CI workflow**: GitHub Actions running backend compile + pytest and
       frontend lint, `tsc --noEmit`, and build on every PR. (2026-10-20, S-41 [PR #14](https://github.com/sawthunaing/stn-job-hunting-dashboard-with-ai/pull/14), S-42 [PR #15](https://github.com/sawthunaing/stn-job-hunting-dashboard-with-ai/pull/15))
+- [x] **B-001 · P0 · S: Wire up the tailored-CV download endpoint** (already done: `GET /jobs/{job_id}/cv` exists in `main.py`, paste-in snippet files already removed from the repo root)
+- [x] **B-003 · P1 · S: Update README for the Claude migration** (already done: no OpenAI/GPT-5 mentions remain in `README.md`)
+- [x] **B-004 · P1 · M: Add database migrations (Alembic)** (already done: `backend/migrations/versions/0001_job_source_columns.py`, `0002_profile_projects.py`)
+- [x] **B-005 · P1 · M: Backend test suite** (already done: `backend/tests/`, 222 passing tests, now run in CI via S-41)
