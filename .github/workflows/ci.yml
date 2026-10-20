@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt pytest==8.3.3 httpx
+
+      - name: Read the typst version pinned in the Dockerfile
+        id: typst
+        working-directory: backend
+        run: |
+          version=$(grep -oP '^ARG TYPST_VERSION=\K\S+' Dockerfile)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Install typst ${{ steps.typst.outputs.version }}
+        run: |
+          curl -fsSL -o /tmp/typst.tar.xz \
+            "https://github.com/typst/typst/releases/download/${{ steps.typst.outputs.version }}/typst-x86_64-unknown-linux-musl.tar.xz"
+          tar -xJf /tmp/typst.tar.xz -C /tmp
+          sudo mv /tmp/typst-x86_64-unknown-linux-musl/typst /usr/local/bin/typst
+          sudo chmod +x /usr/local/bin/typst
+          typst --version
+
+      - name: Compile check
+        working-directory: backend
+        run: python -m compileall -q app
+
+      - name: Run tests
+        working-directory: backend
+        run: pytest -q
+
+      - name: Build backend Docker image
+        run: docker build -f backend/Dockerfile backend
