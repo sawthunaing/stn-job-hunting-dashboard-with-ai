@@ -100,7 +100,7 @@ describe("api endpoints", () => {
     [{ sort: "created_at_desc" }, "/jobs"],
     [{ sort: "updated_at_desc" }, "/jobs?sort=updated_at_desc"],
     [{ status: "Rejected", sort: "updated_at_desc" }, "/jobs?status_filter=Rejected&sort=updated_at_desc"],
-  ])("list(%j) -> %s", async (params, path) => {
+  ] as const)("list(%j) -> %s", async (params, path) => {
     const fetch = mockFetch(jsonResponse([]));
     await api.list(params);
     expect(fetch.mock.calls[0][0]).toBe(`${API}${path}`);
