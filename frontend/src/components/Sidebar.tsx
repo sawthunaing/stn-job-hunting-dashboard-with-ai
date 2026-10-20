@@ -128,7 +128,7 @@ export function Sidebar({
               className="w-full bg-zinc-900/60 border border-zinc-800 rounded-md pl-8 pr-3 py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700 focus:bg-zinc-900"
             />
           </div>
-          <div className="flex items-center gap-1.5 overflow-x-auto -mx-1 px-1 pb-1 scrollbar-hide">
+          <div className="flex items-center gap-1.5 flex-wrap">
             {STATUSES.map((s) => (
               <button
                 key={s}
