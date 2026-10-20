@@ -14,7 +14,7 @@ def test_download_pdf_and_docx(client):
     jid = _job_with_cv()
     pdf = client.get(f"/jobs/{jid}/cv?format=pdf")
     assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
-    assert 'filename="CV_Acme_Ltd.pdf"' in pdf.headers["content-disposition"]
+    assert 'filename="stn-Acme_Ltd-Engineer.pdf"' in pdf.headers["content-disposition"]
     docx = client.get(f"/jobs/{jid}/cv?format=docx")
     assert docx.status_code == 200 and docx.content.startswith(b"PK")
 
