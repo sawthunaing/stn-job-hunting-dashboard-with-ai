@@ -55,3 +55,22 @@ describe("Sidebar applied-date filter", () => {
     expect(onAppliedToChange).toHaveBeenCalledWith("");
   });
 });
+
+describe("Sidebar status chip row", () => {
+  it("renders every status chip, including Rejected, without a scroll container", () => {
+    setup();
+    for (const s of ["All", "New", "Applied", "Interviewing", "Offer", "Rejected"]) {
+      expect(screen.getByRole("button", { name: s })).toBeInTheDocument();
+    }
+    const row = screen.getByRole("button", { name: "Rejected" }).parentElement!;
+    expect(row.className).toContain("flex-wrap");
+    expect(row.className).not.toContain("overflow-x-auto");
+    expect(row.className).not.toContain("scrollbar-hide");
+  });
+
+  it("clicking the Rejected chip calls onStatusChange", async () => {
+    const { onStatusChange } = setup();
+    await userEvent.click(screen.getByRole("button", { name: "Rejected" }));
+    expect(onStatusChange).toHaveBeenCalledWith("Rejected");
+  });
+});
