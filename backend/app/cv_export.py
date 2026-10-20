@@ -330,10 +330,10 @@ def build_docx(profile, content_md: str) -> bytes:
                 for label, value in b["items"]:
                     p = sink.add_paragraph()
                     add_runs(p, label, bold=True, color=ACCENT)
-                    spacing(p, 6, 1)
+                    spacing(p, 6, 4)
                     p2 = sink.add_paragraph()
                     add_runs(p2, value)
-                    spacing(p2, 0, 6)
+                    spacing(p2, 0, 8)
             else:
                 p = sink.add_paragraph()
                 add_runs(p, b["text"])
@@ -470,11 +470,11 @@ def _typst_render_blocks(blocks: list[dict[str, Any]]) -> list[str]:
         elif kind == "kvs":
             for label, value in b["items"]:
                 lines.append(f'#text(weight: "bold", fill: rgb("#{ACCENT_HEX}"))[{_typst_escape(label)}]')
-                lines.append("#v(1pt, weak: true)")
+                lines.append("#v(4pt, weak: true)")
                 lines.append(f"#text[{_typ(value)}]")
-                lines.append("#v(2pt, weak: true)")
-                lines.append(f'#rect(width: 100%, height: 0.5pt, fill: rgb("#{RULE_HEX}"), stroke: none, inset: 0pt)')
                 lines.append("#v(5pt, weak: true)")
+                lines.append(f'#rect(width: 100%, height: 0.5pt, fill: rgb("#{RULE_HEX}"), stroke: none, inset: 0pt)')
+                lines.append("#v(8pt, weak: true)")
         else:
             lines.append(f"#text(size: {BODY_PT}pt)[{_typ(b['text'])}]")
             lines.append("#v(8pt, weak: true)")
