@@ -9,15 +9,17 @@ Layout (A4, narrow margins, serif body):
   Label rows "**Certifications:** ..." as a label column + hanging value
 
 The tailored body comes from the AI as markdown (see ai.py for the contract).
-Pure-Python: python-docx + reportlab. The PDF embeds the bundled Lora font
-(SIL OFL, app/fonts); the DOCX uses Cambria, which ships with Word.
+The DOCX uses python-docx with Cambria, which ships with Word. The PDF is
+typeset by Typst (external `typst` binary, see PDF section below) and embeds
+the bundled Lora font (SIL OFL, app/fonts).
 """
 from __future__ import annotations
 import io
 import re
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
-from xml.sax.saxutils import escape
 
 _BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
 _KV_RE = re.compile(r"^\*\*([^*]+?):\*\*\s*(.*)$")
@@ -254,115 +256,105 @@ def build_docx(profile, content_md: str) -> bytes:
     buf = io.BytesIO(); doc.save(buf); return buf.getvalue()
 
 
-# ---- PDF ------------------------------------------------------------------
+# ---- PDF (Typst) -----------------------------------------------------------
 
-def _register_pdf_fonts() -> tuple[str, str, str, str]:
-    """Register Lora if bundled; otherwise fall back to the built-in Times."""
-    from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.ttfonts import TTFont
-    from reportlab.lib.fonts import addMapping
+TYPST_BIN = "typst"
+TYPST_FONT_FAMILY = "Lora"
 
-    names = {"Regular": "CVSerif", "Bold": "CVSerif-Bold",
-             "Italic": "CVSerif-Italic", "BoldItalic": "CVSerif-BoldItalic"}
-    files = {k: FONTS_DIR / f"Lora-{k}.ttf" for k in names}
-    if not all(f.exists() for f in files.values()):
-        return "Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic"
-    for k, face in names.items():
-        if face not in pdfmetrics.getRegisteredFontNames():
-            pdfmetrics.registerFont(TTFont(face, str(files[k])))
-    addMapping("CVSerif", 0, 0, names["Regular"])
-    addMapping("CVSerif", 1, 0, names["Bold"])
-    addMapping("CVSerif", 0, 1, names["Italic"])
-    addMapping("CVSerif", 1, 1, names["BoldItalic"])
-    return names["Regular"], names["Bold"], names["Italic"], names["BoldItalic"]
+_TYPST_ESCAPE_RE = re.compile(r"[\\#*_`$<>@\[\]~/=]")
 
 
-def build_pdf(profile, content_md: str) -> bytes:
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.units import inch
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT
-    from reportlab.lib.colors import black, HexColor
-    from reportlab.pdfbase.pdfmetrics import stringWidth
-    from reportlab.platypus import (
-        BaseDocTemplate, PageTemplate, Frame, Paragraph, Table, TableStyle,
-        KeepTogether, HRFlowable,
-    )
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+def _typst_escape(text: str) -> str:
+    """Escape characters Typst's markup/content mode treats as special."""
+    return _TYPST_ESCAPE_RE.sub(lambda m: "\\" + m.group(0), text)
 
-    F, FB, _, _ = _register_pdf_fonts()
+
+def _typ(text: str) -> str:
+    """Escape text for Typst, re-applying **bold** runs as Typst strong emphasis."""
+    out = []
+    for seg, bold in _split_bold(text):
+        seg = _typst_escape(seg)
+        out.append(f"*{seg}*" if bold else seg)
+    return "".join(out)
+
+
+def _typst_contact_line(profile) -> str:
+    bits = []
+    for label, text, href in _contact_parts(profile):
+        shown = _typst_escape(label) + _typst_escape(text)
+        bits.append(f'#link("{href}")[{shown}]' if href else shown)
+    return " | ".join(bits)
+
+
+def _typst_source(profile, content_md: str) -> str:
     name, blocks = _prepare(profile, content_md)
-    ss = getSampleStyleSheet()
 
-    def style(sid, **kw):
-        return ParagraphStyle(sid, parent=ss["Normal"], textColor=black, **kw)
+    lines = [
+        f'#set page(paper: "a4", margin: (left: {MARGIN_SIDE_IN}in, right: {MARGIN_SIDE_IN}in, '
+        f"top: {MARGIN_TOP_IN}in, bottom: {MARGIN_BOTTOM_IN}in))",
+        f'#set text(font: "{TYPST_FONT_FAMILY}", size: {BODY_PT}pt)',
+        "#set par(justify: false, leading: 0.5em, spacing: 0pt)",
+        f"#set list(marker: [•], indent: {BULLET_INDENT_IN}in, "
+        f"body-indent: {BULLET_TEXT_IN - BULLET_INDENT_IN}in, spacing: 0.4em)",
+        "",
+        f'#align(center)[#text(size: {NAME_PT}pt, weight: "bold")[{_typst_escape(name)}]]',
+    ]
 
-    name_s = style("N", fontName=FB, fontSize=NAME_PT, leading=NAME_PT + 4, alignment=TA_CENTER, spaceAfter=1)
-    contact_s = style("C", fontName=F, fontSize=CONTACT_PT, leading=CONTACT_PT + 3, alignment=TA_CENTER, spaceAfter=4)
-    h2_s = style("H2", fontName=FB, fontSize=HEADING_PT, leading=HEADING_PT + 3, spaceBefore=7)
-    entry_s = style("E", fontName=FB, fontSize=ENTRY_PT, leading=ENTRY_PT + 3.5, spaceBefore=6, spaceAfter=3)
-    body_s = style("B", fontName=F, fontSize=BODY_PT, leading=BODY_PT + 3.3, alignment=TA_LEFT, spaceAfter=3)
-    bullet_s = style("BU", fontName=F, fontSize=BODY_PT, leading=BODY_PT + 3.3, spaceAfter=2,
-                     leftIndent=BULLET_TEXT_IN * inch, bulletIndent=BULLET_INDENT_IN * inch,
-                     bulletFontName=F, bulletFontSize=BODY_PT)
-
-    def rl(text: str) -> str:
-        out = []
-        for seg, b in _split_bold(text):
-            seg = escape(seg)
-            out.append(f"<b>{seg}</b>" if b else seg)
-        return "".join(out)
-
-    page_w = A4[0]
-    margin_x = MARGIN_SIDE_IN * inch
-    content_w = page_w - 2 * margin_x
-
-    story = [Paragraph(rl(name), name_s)]
-
-    contact = _contact_parts(profile)
-    if contact:
-        bits = []
-        for label, text, href in contact:
-            if href:
-                bits.append(f'{escape(label)}<link href="{escape(href, {chr(34): "&quot;"})}" color="#0563C1">'
-                            f'<u>{escape(text)}</u></link>')
-            else:
-                bits.append(escape(label + text))
-        story.append(Paragraph(" | ".join(bits), contact_s))
+    contact_line = _typst_contact_line(profile)
+    if contact_line:
+        lines.append(f"#v(1pt)")
+        lines.append(f"#align(center)[#text(size: {CONTACT_PT}pt)[{contact_line}]]")
+    lines.append("#v(4pt, weak: true)")
 
     for b in blocks:
         kind = b["kind"]
         if kind in ("h1", "h2"):
-            story.append(KeepTogether([
-                Paragraph(rl(b["text"].upper()), h2_s),
-                HRFlowable(width="100%", thickness=0.75, color=black, spaceBefore=1, spaceAfter=3),
-            ]))
+            lines.append("#v(7pt)")
+            lines.append(f'#text(size: {HEADING_PT}pt, weight: "bold")[{_typst_escape(b["text"].upper())}]')
+            lines.append("#v(1pt)")
+            lines.append("#rect(width: 100%, height: 0.75pt, fill: black, stroke: none, inset: 0pt)")
+            lines.append("#v(3pt, weak: true)")
         elif kind == "entry":
-            story.append(Paragraph(rl(b["text"]), entry_s))
+            lines.append("#v(6pt)")
+            lines.append(f'#text(size: {ENTRY_PT}pt, weight: "bold")[{_typ(b["text"])}]')
+            lines.append("#v(3pt, weak: true)")
         elif kind == "bullets":
-            for it in b["items"]:
-                story.append(Paragraph(rl(it), bullet_s, bulletText="•"))
+            lines.extend(f"- {_typ(it)}" for it in b["items"])
+            lines.append("#v(2pt, weak: true)")
         elif kind == "kvs":
-            col = max(stringWidth(label, FB, BODY_PT) for label, _ in b["items"]) + 8
-            rows = [[Paragraph(f"<b>{escape(label)}</b>", body_s), Paragraph(rl(value), body_s)]
-                    for label, value in b["items"]]
-            tbl = Table(rows, colWidths=[col, content_w - col])
-            tbl.setStyle(TableStyle([
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                ("TOPPADDING", (0, 0), (-1, -1), 0),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-            ]))
-            story.append(tbl)
+            cells = []
+            for label, value in b["items"]:
+                cells.append(f"[*{_typst_escape(label)}*]")
+                cells.append(f"[{_typ(value)}]")
+            table_src = (
+                "#table(columns: (auto, 1fr), stroke: none, inset: 0pt, "
+                "column-gutter: 8pt, row-gutter: 2pt,\n  "
+                + ",\n  ".join(cells)
+                + ",\n)"
+            )
+            lines.append(table_src)
+            lines.append("#v(2pt, weak: true)")
         else:
-            story.append(Paragraph(rl(b["text"]), body_s))
+            lines.append(f"#text(size: {BODY_PT}pt)[{_typ(b['text'])}]")
+            lines.append("#v(4pt, weak: true)")
 
-    page_w, page_h = A4
-    top, bottom = MARGIN_TOP_IN * inch, MARGIN_BOTTOM_IN * inch
-    frame = Frame(margin_x, bottom, content_w, page_h - top - bottom,
-                  leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
-    buf = io.BytesIO()
-    doc = BaseDocTemplate(buf, pagesize=A4, title=f"{name} - CV", author=name,
-                          pageTemplates=[PageTemplate(id="cv", frames=[frame])])
-    doc.build(story)
-    return buf.getvalue()
+    return "\n".join(lines) + "\n"
+
+
+def build_pdf(profile, content_md: str) -> bytes:
+    """Render the CV to PDF by compiling a generated Typst source with the `typst` CLI."""
+    source = _typst_source(profile, content_md)
+
+    with tempfile.TemporaryDirectory(prefix="cv-typst-") as tmp:
+        tmp_path = Path(tmp)
+        typ_path = tmp_path / "cv.typ"
+        pdf_path = tmp_path / "cv.pdf"
+        typ_path.write_text(source, encoding="utf-8")
+
+        proc = subprocess.run(
+            [TYPST_BIN, "compile", "--font-path", str(FONTS_DIR), str(typ_path), str(pdf_path)],
+            capture_output=True, text=True,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"typst compile failed: {(proc.stderr or proc.stdout).strip()}")
+        return pdf_path.read_bytes()

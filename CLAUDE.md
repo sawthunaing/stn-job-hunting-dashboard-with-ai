@@ -20,7 +20,7 @@ and recruiter email, prepares interview questions, and tracks the pipeline
 | Backend  | FastAPI, SQLAlchemy 2.0, Pydantic v2, Python 3.12 |
 | AI       | Anthropic Claude via the `anthropic` SDK (`backend/app/ai.py`) |
 | DB       | PostgreSQL 16 (Docker) |
-| Export   | `python-docx` and `reportlab` (`backend/app/cv_export.py`) |
+| Export   | `python-docx` and Typst (`typst` CLI, see `backend/Dockerfile`) (`backend/app/cv_export.py`) |
 | Infra    | Docker Compose; AWS EC2 `t4g.small` (ARM) provisioned with Terraform (`infra/main.tf`) |
 
 ## Repository map

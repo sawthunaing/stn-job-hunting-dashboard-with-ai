@@ -137,7 +137,7 @@ class TestBuildPdf:
         assert data.rstrip().endswith(b"%%EOF")
 
     def test_escapes_html_special_chars(self):
-        # "<tests>" would break reportlab's mini-markup if not escaped
+        # "<tests>" would break Typst's markup if not escaped
         assert cv_export.build_pdf(profile(), "Text with <tag> & stuff").startswith(b"%PDF")
 
     def test_empty_profile_and_body(self):
