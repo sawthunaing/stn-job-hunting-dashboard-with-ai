@@ -22,6 +22,8 @@ function setup(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     onAppliedFromChange: vi.fn(),
     appliedTo: "",
     onAppliedToChange: vi.fn(),
+    sortBy: "created_at_desc" as const,
+    onSortByChange: vi.fn(),
     ...overrides,
   };
   render(<Sidebar {...props} />);
@@ -56,21 +58,20 @@ describe("Sidebar applied-date filter", () => {
   });
 });
 
-describe("Sidebar status chip row", () => {
-  it("renders every status chip, including Rejected, without a scroll container", () => {
+describe("Sidebar sort-by control", () => {
+  it("defaults to Date added", () => {
     setup();
-    for (const s of ["All", "New", "Applied", "Interviewing", "Offer", "Rejected"]) {
-      expect(screen.getByRole("button", { name: s })).toBeInTheDocument();
-    }
-    const row = screen.getByRole("button", { name: "Rejected" }).parentElement!;
-    expect(row.className).toContain("flex-wrap");
-    expect(row.className).not.toContain("overflow-x-auto");
-    expect(row.className).not.toContain("scrollbar-hide");
+    expect(screen.getByLabelText("Sort by")).toHaveValue("created_at_desc");
   });
 
-  it("clicking the Rejected chip calls onStatusChange", async () => {
-    const { onStatusChange } = setup();
-    await userEvent.click(screen.getByRole("button", { name: "Rejected" }));
-    expect(onStatusChange).toHaveBeenCalledWith("Rejected");
+  it("shows the given sort value selected", () => {
+    setup({ sortBy: "updated_at_desc" });
+    expect(screen.getByLabelText("Sort by")).toHaveValue("updated_at_desc");
+  });
+
+  it("calls onSortByChange when a different option is picked", async () => {
+    const { onSortByChange } = setup();
+    await userEvent.selectOptions(screen.getByLabelText("Sort by"), "updated_at_desc");
+    expect(onSortByChange).toHaveBeenCalledWith("updated_at_desc");
   });
 });

@@ -8,7 +8,7 @@ import {
   User, LogOut, Menu, ArrowLeft, Home,
 } from "lucide-react";
 import { api, type JobListItem, type JobDetail, type Status } from "@/lib/api";
-import { Sidebar } from "@/components/Sidebar";
+import { Sidebar, type SortBy } from "@/components/Sidebar";
 import { JobFormModal } from "@/components/JobFormModal";
 import { AddFromUrlModal } from "@/components/AddFromUrlModal";
 import { AuthGuard } from "@/components/AuthGuard";
@@ -49,10 +49,11 @@ function PageInner() {
   const [includeUnscored, setIncludeUnscored] = useState(true);
   const [appliedFrom, setAppliedFrom] = useState("");
   const [appliedTo, setAppliedTo] = useState("");
+  const [sortBy, setSortBy] = useState<SortBy>("created_at_desc");
 
   const refreshList = useCallback(async () => {
     try {
-      const list = await api.list({ status: statusFilter, q: search, appliedFrom, appliedTo });
+      const list = await api.list({ status: statusFilter, q: search, appliedFrom, appliedTo, sort: sortBy });
       setJobs(list);
       if (list.length > 0 && (selectedId == null || !list.find((j) => j.id === selectedId))) {
         setSelectedId(list[0].id);
@@ -65,7 +66,7 @@ function PageInner() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, search, appliedFrom, appliedTo, selectedId]);
+  }, [statusFilter, search, appliedFrom, appliedTo, sortBy, selectedId]);
 
   useEffect(() => { refreshList(); }, [refreshList]);
 
@@ -228,6 +229,8 @@ function PageInner() {
           onAppliedFromChange={setAppliedFrom}
           appliedTo={appliedTo}
           onAppliedToChange={setAppliedTo}
+          sortBy={sortBy}
+          onSortByChange={setSortBy}
           hideAdd={isDemo}
         />
 

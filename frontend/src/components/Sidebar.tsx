@@ -4,12 +4,18 @@ import type { JobListItem } from "@/lib/api";
 import { SuitabilityRing, StatusPill, logoFor } from "./ui";
 
 const STATUSES = ["All", "New", "Applied", "Interviewing", "Offer", "Rejected"];
+export type SortBy = "created_at_desc" | "updated_at_desc";
+const SORT_OPTIONS: { value: SortBy; label: string }[] = [
+  { value: "created_at_desc", label: "Date added" },
+  { value: "updated_at_desc", label: "Last updated" },
+];
 
 export function Sidebar({
   jobs, selectedId, onSelect, search, onSearch, statusFilter, onStatusChange, onAddClick, loading,
   isOpen = true, onClose,
   minScore, onMinScoreChange, includeUnscored, onIncludeUnscoredChange,
   appliedFrom, onAppliedFromChange, appliedTo, onAppliedToChange,
+  sortBy, onSortByChange,
   hideAdd,
 }: {
   jobs: JobListItem[];
@@ -36,6 +42,9 @@ export function Sidebar({
   onAppliedFromChange: (v: string) => void;
   appliedTo: string;
   onAppliedToChange: (v: string) => void;
+  /** List sort order. Defaults to "created_at_desc". */
+  sortBy: SortBy;
+  onSortByChange: (v: SortBy) => void;
   /** Hide the "+ Add" button (used in demo mode). */
   hideAdd?: boolean;
 }) {
@@ -133,6 +142,21 @@ export function Sidebar({
                 {s}
               </button>
             ))}
+          </div>
+
+          {/* Sort order */}
+          <div className="flex items-center gap-2 text-xs">
+            <label htmlFor="sort-by" className="text-zinc-500">Sort by</label>
+            <select
+              id="sort-by"
+              value={sortBy}
+              onChange={(e) => onSortByChange(e.target.value as SortBy)}
+              className="flex-1 bg-zinc-900/60 border border-zinc-800 rounded-md px-2 py-1.5 text-zinc-300 focus:outline-none focus:border-zinc-700"
+            >
+              {SORT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
           </div>
 
           {/* Applied-date range filter */}
